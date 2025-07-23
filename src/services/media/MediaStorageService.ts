@@ -16,10 +16,10 @@ export interface MediaCompressionOptions {
 }
 
 /**
- * Serviço para gerenciar armazenamento local de fotos e evidências
+ * Serviço para gerenciar armazenamento local de mídia (fotos e vídeos)
  *
  * Funcionalidades:
- * - Armazenamento de fotos no IndexedDB
+ * - Armazenamento de fotos e vídeos no IndexedDB
  * - Compressão automática de imagens
  * - Gerenciamento de metadados
  * - Limpeza de arquivos antigos
@@ -38,30 +38,35 @@ export class MediaStorageService {
   }
 
   /**
-   * Salvar foto no armazenamento local
+   * Salvar mídia (foto ou vídeo) no armazenamento local
    */
-  async salvarFoto(
+  async salvarMidia(
     vistoriaId: string,
     itemId: string,
-    foto: MediaFile,
+    media: MediaFile,
     compressionOptions?: Partial<MediaCompressionOptions>
   ): Promise<MediaStorageResult> {
     try {
-      console.log('💾 [MEDIA-STORAGE] Salvando foto:', foto.id);
+      console.log(`💾 [MEDIA-STORAGE] Salvando ${media.tipo}:`, media.id);
 
-      // Comprimir imagem se necessário
-      let fotoProcessada = foto;
-      if (foto.tamanho > 500 * 1024) { // Se maior que 500KB
+      // Comprimir apenas imagens (fotos)
+      let mediaProcessada = media;
+      if (media.tipo === 'foto' && media.tamanho > 500 * 1024) { // Se maior que 500KB
         console.log('🗜️ [MEDIA-STORAGE] Comprimindo imagem...');
-        fotoProcessada = await this.compressImage(foto, {
+        mediaProcessada = await this.compressImage(media, {
           ...this.defaultCompressionOptions,
           ...compressionOptions
         });
       }
 
+      // Para vídeos, apenas armazenar (compressão já foi feita no componente)
+      if (media.tipo === 'video') {
+        console.log(`🎥 [MEDIA-STORAGE] Armazenando vídeo de ${Math.round(media.tamanho / 1024 / 1024 * 100) / 100}MB`);
+      }
+
       // Preparar dados para armazenamento
       const mediaData = {
-        ...fotoProcessada,
+        ...mediaProcessada,
         vistoriaId,
         itemId,
         syncStatus: 'pending' as const,
@@ -73,54 +78,101 @@ export class MediaStorageService {
       const result = await this.crudService.create(STORES.EVIDENCIAS, mediaData);
 
       if (result.success) {
-        console.log('✅ [MEDIA-STORAGE] Foto salva com sucesso:', foto.id);
+        console.log(`✅ [MEDIA-STORAGE] ${media.tipo} salvo com sucesso:`, media.id);
         return {
           success: true,
           data: result.data
         };
       } else {
-        throw new Error(result.error || 'Erro ao salvar foto');
+        throw new Error(result.error || `Erro ao salvar ${media.tipo}`);
       }
 
     } catch (error) {
-      console.error('❌ [MEDIA-STORAGE] Erro ao salvar foto:', error);
+      console.error(`❌ [MEDIA-STORAGE] Erro ao salvar ${media.tipo}:`, error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Erro desconhecido ao salvar foto'
+        error: error instanceof Error ? error.message : `Erro desconhecido ao salvar ${media.tipo}`
       };
     }
   }
 
   /**
-   * Buscar fotos de um item específico
+   * Salvar foto no armazenamento local (método específico mantido para compatibilidade)
    */
-  async buscarFotosDoItem(vistoriaId: string, itemId: string): Promise<MediaStorageResult> {
-    try {
-      console.log('🔍 [MEDIA-STORAGE] Buscando fotos do item:', itemId);
+  async salvarFoto(
+    vistoriaId: string,
+    itemId: string,
+    foto: MediaFile,
+    compressionOptions?: Partial<MediaCompressionOptions>
+  ): Promise<MediaStorageResult> {
+    // Usar método genérico para manter compatibilidade
+    return this.salvarMidia(vistoriaId, itemId, foto, compressionOptions);
+  }
 
-      // Por enquanto, buscar todas e filtrar (implementação simples)
+  /**
+   * Salvar vídeo no armazenamento local
+   */
+  async salvarVideo(
+    vistoriaId: string,
+    itemId: string,
+    video: MediaFile
+  ): Promise<MediaStorageResult> {
+    // Usar método genérico para vídeos
+    return this.salvarMidia(vistoriaId, itemId, video);
+  }
+
+  /**
+   * Buscar mídia (fotos e vídeos) de um item específico
+   */
+  async buscarMidiaDoItem(vistoriaId: string, itemId: string): Promise<MediaStorageResult> {
+    try {
+      console.log('🔍 [MEDIA-STORAGE] Buscando mídia do item:', itemId);
+
+      // Buscar todas e filtrar por vistoriaId e itemId
       const allResult = await this.crudService.getAll(STORES.EVIDENCIAS);
       
       if (!allResult.success || !allResult.data) {
-        throw new Error(allResult.error || 'Erro ao buscar fotos');
+        throw new Error(allResult.error || 'Erro ao buscar mídia');
       }
 
-      const fotosItem = (allResult.data as any[]).filter(
-        (foto: any) => foto.vistoriaId === vistoriaId && foto.itemId === itemId
+      const midiaItem = (allResult.data as any[]).filter(
+        (media: any) => media.vistoriaId === vistoriaId && media.itemId === itemId
       );
 
-      const result = {
+      console.log(`✅ [MEDIA-STORAGE] Mídia encontrada:`, midiaItem.length, 'arquivos');
+      return {
         success: true,
-        data: fotosItem
+        data: midiaItem || []
       };
 
-              console.log('✅ [MEDIA-STORAGE] Fotos encontradas:', result.data?.length || 0);
+    } catch (error) {
+      console.error('❌ [MEDIA-STORAGE] Erro ao buscar mídia:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Erro desconhecido ao buscar mídia'
+      };
+    }
+  }
+
+  /**
+   * Buscar fotos de um item específico (mantido para compatibilidade)
+   */
+  async buscarFotosDoItem(vistoriaId: string, itemId: string): Promise<MediaStorageResult> {
+    try {
+      const result = await this.buscarMidiaDoItem(vistoriaId, itemId);
+      
+      if (result.success && result.data) {
+        // Filtrar apenas fotos
+        const fotos = (result.data as any[]).filter((media: any) => media.tipo === 'foto');
+        console.log('✅ [MEDIA-STORAGE] Fotos encontradas:', fotos.length);
         return {
           success: true,
-          data: result.data || []
+          data: fotos
         };
-
-      } catch (error) {
+      }
+      
+      return result;
+    } catch (error) {
       console.error('❌ [MEDIA-STORAGE] Erro ao buscar fotos:', error);
       return {
         success: false,
@@ -130,34 +182,83 @@ export class MediaStorageService {
   }
 
   /**
-   * Buscar todas as fotos de uma vistoria
+   * Buscar vídeos de um item específico
    */
-  async buscarFotosDaVistoria(vistoriaId: string): Promise<MediaStorageResult> {
+  async buscarVideosDoItem(vistoriaId: string, itemId: string): Promise<MediaStorageResult> {
     try {
-      console.log('🔍 [MEDIA-STORAGE] Buscando fotos da vistoria:', vistoriaId);
+      const result = await this.buscarMidiaDoItem(vistoriaId, itemId);
+      
+      if (result.success && result.data) {
+        // Filtrar apenas vídeos
+        const videos = (result.data as any[]).filter((media: any) => media.tipo === 'video');
+        console.log('✅ [MEDIA-STORAGE] Vídeos encontrados:', videos.length);
+        return {
+          success: true,
+          data: videos
+        };
+      }
+      
+      return result;
+    } catch (error) {
+      console.error('❌ [MEDIA-STORAGE] Erro ao buscar vídeos:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Erro desconhecido ao buscar vídeos'
+      };
+    }
+  }
+
+  /**
+   * Buscar toda mídia de uma vistoria
+   */
+  async buscarMidiaDaVistoria(vistoriaId: string): Promise<MediaStorageResult> {
+    try {
+      console.log('🔍 [MEDIA-STORAGE] Buscando mídia da vistoria:', vistoriaId);
 
       // Buscar todas e filtrar por vistoriaId
       const allResult = await this.crudService.getAll(STORES.EVIDENCIAS);
       
       if (!allResult.success || !allResult.data) {
-        throw new Error('Erro ao buscar fotos da vistoria');
+        throw new Error('Erro ao buscar mídia da vistoria');
       }
 
-      const fotosVistoria = (allResult.data as any[]).filter(
-        (foto: any) => foto.vistoriaId === vistoriaId
+      const midiaVistoria = (allResult.data as any[]).filter(
+        (media: any) => media.vistoriaId === vistoriaId
       );
 
-      const result = {
+      console.log(`✅ [MEDIA-STORAGE] Mídia da vistoria encontrada:`, midiaVistoria.length, 'arquivos');
+      return {
         success: true,
-        data: fotosVistoria
+        data: midiaVistoria || []
       };
 
-              console.log('✅ [MEDIA-STORAGE] Fotos da vistoria encontradas:', result.data?.length || 0);
+    } catch (error) {
+      console.error('❌ [MEDIA-STORAGE] Erro ao buscar mídia da vistoria:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Erro desconhecido ao buscar mídia'
+      };
+    }
+  }
+
+  /**
+   * Buscar todas as fotos de uma vistoria
+   */
+  async buscarFotosDaVistoria(vistoriaId: string): Promise<MediaStorageResult> {
+    try {
+      const result = await this.buscarMidiaDaVistoria(vistoriaId);
+      
+      if (result.success && result.data) {
+        // Filtrar apenas fotos
+        const fotos = (result.data as any[]).filter((media: any) => media.tipo === 'foto');
+        console.log('✅ [MEDIA-STORAGE] Fotos da vistoria encontradas:', fotos.length);
         return {
           success: true,
-          data: result.data || []
+          data: fotos
         };
-
+      }
+      
+      return result;
     } catch (error) {
       console.error('❌ [MEDIA-STORAGE] Erro ao buscar fotos da vistoria:', error);
       return {
@@ -168,30 +269,71 @@ export class MediaStorageService {
   }
 
   /**
-   * Remover foto
+   * Buscar todos os vídeos de uma vistoria
    */
-  async removerFoto(fotoId: string): Promise<MediaStorageResult> {
+  async buscarVideosDaVistoria(vistoriaId: string): Promise<MediaStorageResult> {
     try {
-      console.log('🗑️ [MEDIA-STORAGE] Removendo foto:', fotoId);
+      const result = await this.buscarMidiaDaVistoria(vistoriaId);
+      
+      if (result.success && result.data) {
+        // Filtrar apenas vídeos
+        const videos = (result.data as any[]).filter((media: any) => media.tipo === 'video');
+        console.log('✅ [MEDIA-STORAGE] Vídeos da vistoria encontrados:', videos.length);
+        return {
+          success: true,
+          data: videos
+        };
+      }
+      
+      return result;
+    } catch (error) {
+      console.error('❌ [MEDIA-STORAGE] Erro ao buscar vídeos da vistoria:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Erro desconhecido ao buscar vídeos'
+      };
+    }
+  }
 
-      const result = await this.crudService.delete(STORES.EVIDENCIAS, fotoId);
+  /**
+   * Remover mídia (foto ou vídeo)
+   */
+  async removerMidia(midiaId: string): Promise<MediaStorageResult> {
+    try {
+      console.log('🗑️ [MEDIA-STORAGE] Removendo mídia:', midiaId);
+
+      const result = await this.crudService.delete(STORES.EVIDENCIAS, midiaId);
 
       if (result.success) {
-        console.log('✅ [MEDIA-STORAGE] Foto removida com sucesso:', fotoId);
+        console.log('✅ [MEDIA-STORAGE] Mídia removida com sucesso:', midiaId);
         return {
           success: true
         };
       } else {
-        throw new Error(result.error || 'Erro ao remover foto');
+        throw new Error(result.error || 'Erro ao remover mídia');
       }
 
     } catch (error) {
-      console.error('❌ [MEDIA-STORAGE] Erro ao remover foto:', error);
+      console.error('❌ [MEDIA-STORAGE] Erro ao remover mídia:', error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Erro desconhecido ao remover foto'
+        error: error instanceof Error ? error.message : 'Erro desconhecido ao remover mídia'
       };
     }
+  }
+
+  /**
+   * Remover foto (mantido para compatibilidade)
+   */
+  async removerFoto(fotoId: string): Promise<MediaStorageResult> {
+    return this.removerMidia(fotoId);
+  }
+
+  /**
+   * Remover vídeo
+   */
+  async removerVideo(videoId: string): Promise<MediaStorageResult> {
+    return this.removerMidia(videoId);
   }
 
   /**
@@ -309,80 +451,94 @@ export class MediaStorageService {
   }
 
   /**
-   * Limpar fotos antigas (mais de X dias)
+   * Limpar mídia antiga (mais de X dias)
+   */
+  async limparMidiaAntiga(diasAntigos: number = 30): Promise<{
+    midiaRemovida: number;
+    espacoLiberado: number;
+  }> {
+    try {
+      console.log(`🧹 [MEDIA-STORAGE] Limpando mídia com mais de ${diasAntigos} dias...`);
+
+      const result = await this.crudService.getAll(STORES.EVIDENCIAS);
+      
+      if (!result.success || !result.data) {
+        return { midiaRemovida: 0, espacoLiberado: 0 };
+      }
+
+      const midias = result.data as (MediaFile & { createdAt?: string })[];
+      const dataLimite = new Date();
+      dataLimite.setDate(dataLimite.getDate() - diasAntigos);
+
+      let midiaRemovida = 0;
+      let espacoLiberado = 0;
+
+      for (const midia of midias) {
+        const dataMidia = midia.createdAt ? new Date(midia.createdAt) : midia.timestamp;
+        
+        if (dataMidia < dataLimite) {
+          const removeResult = await this.removerMidia(midia.id);
+          if (removeResult.success) {
+            midiaRemovida++;
+            espacoLiberado += midia.tamanho;
+          }
+        }
+      }
+
+      console.log(`✅ [MEDIA-STORAGE] Limpeza concluída: ${midiaRemovida} arquivos removidos, ${Math.round(espacoLiberado / 1024 / 1024 * 100) / 100}MB liberados`);
+
+      return { midiaRemovida, espacoLiberado };
+
+    } catch (error) {
+      console.error('❌ [MEDIA-STORAGE] Erro na limpeza:', error);
+      return { midiaRemovida: 0, espacoLiberado: 0 };
+    }
+  }
+
+  /**
+   * Limpar fotos antigas (mantido para compatibilidade)
    */
   async limparFotosAntigas(diasAntigos: number = 30): Promise<{
     fotosRemovidas: number;
     espacoLiberado: number;
   }> {
-    try {
-      console.log(`🧹 [MEDIA-STORAGE] Limpando fotos com mais de ${diasAntigos} dias...`);
-
-      const result = await this.crudService.getAll(STORES.EVIDENCIAS);
-      
-      if (!result.success || !result.data) {
-        return { fotosRemovidas: 0, espacoLiberado: 0 };
-      }
-
-      const fotos = result.data as (MediaFile & { createdAt?: string })[];
-      const dataLimite = new Date();
-      dataLimite.setDate(dataLimite.getDate() - diasAntigos);
-
-      let fotosRemovidas = 0;
-      let espacoLiberado = 0;
-
-      for (const foto of fotos) {
-        const dataFoto = foto.createdAt ? new Date(foto.createdAt) : foto.timestamp;
-        
-        if (dataFoto < dataLimite) {
-          const removeResult = await this.removerFoto(foto.id);
-          if (removeResult.success) {
-            fotosRemovidas++;
-            espacoLiberado += foto.tamanho;
-          }
-        }
-      }
-
-      console.log(`✅ [MEDIA-STORAGE] Limpeza concluída: ${fotosRemovidas} fotos removidas, ${Math.round(espacoLiberado / 1024 / 1024 * 100) / 100}MB liberados`);
-
-      return { fotosRemovidas, espacoLiberado };
-
-    } catch (error) {
-      console.error('❌ [MEDIA-STORAGE] Erro na limpeza:', error);
-      return { fotosRemovidas: 0, espacoLiberado: 0 };
-    }
+    const result = await this.limparMidiaAntiga(diasAntigos);
+    return {
+      fotosRemovidas: result.midiaRemovida,
+      espacoLiberado: result.espacoLiberado
+    };
   }
 
   /**
-   * Marcar foto como sincronizada
+   * Marcar mídia como sincronizada
    */
-  async marcarComoSincronizada(fotoId: string, urlServidor: string): Promise<MediaStorageResult> {
+  async marcarComoSincronizada(midiaId: string, urlServidor: string): Promise<MediaStorageResult> {
     try {
-      const result = await this.crudService.findBy(STORES.EVIDENCIAS, { field: 'id', value: fotoId });
+      const result = await this.crudService.findBy(STORES.EVIDENCIAS, { field: 'id', value: midiaId });
       
-              if (!result.success || !result.data || result.data.length === 0) {
-          throw new Error('Foto não encontrada');
-        }
+      if (!result.success || !result.data || result.data.length === 0) {
+        throw new Error('Mídia não encontrada');
+      }
 
-        const foto = result.data[0] as any;
-        const fotoAtualizada = {
-          ...foto,
-          url: urlServidor,
-          syncStatus: 'synced' as const,
-          updatedAt: new Date().toISOString()
+      const midia = result.data[0] as any;
+      const midiaAtualizada = {
+        ...midia,
+        url: urlServidor,
+        syncStatus: 'synced' as const,
+        updatedAt: new Date().toISOString()
+      };
+
+      const updateResult = await this.crudService.update(STORES.EVIDENCIAS, midiaAtualizada);
+
+      if (updateResult.success) {
+        console.log('✅ [MEDIA-STORAGE] Mídia marcada como sincronizada:', midiaId);
+        return {
+          success: true,
+          data: updateResult.data as MediaFile
         };
-
-        const updateResult = await this.crudService.update(STORES.EVIDENCIAS, fotoAtualizada);
-
-        if (updateResult.success) {
-          console.log('✅ [MEDIA-STORAGE] Foto marcada como sincronizada:', fotoId);
-          return {
-            success: true,
-            data: updateResult.data as MediaFile
-          };
-        } else {
-          throw new Error('Erro ao atualizar status de sincronização');
-        }
+      } else {
+        throw new Error('Erro ao atualizar status de sincronização');
+      }
 
     } catch (error) {
       console.error('❌ [MEDIA-STORAGE] Erro ao marcar como sincronizada:', error);
@@ -392,4 +548,11 @@ export class MediaStorageService {
       };
     }
   }
-} 
+
+  /**
+   * Marcar foto como sincronizada (mantido para compatibilidade)
+   */
+  async marcarFotoComoSincronizada(fotoId: string, urlServidor: string): Promise<MediaStorageResult> {
+    return this.marcarComoSincronizada(fotoId, urlServidor);
+  }
+}
