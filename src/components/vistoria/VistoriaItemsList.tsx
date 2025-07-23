@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { ProgressIndicator } from '@/components/vistoria/ProgressIndicator';
 import { StatusBadge } from '@/components/vistoria/StatusBadge';

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { VistoriaItemsList } from '@/components/vistoria/VistoriaItemsList';
 
 import { StatusBadge } from '@/components/vistoria/StatusBadge';
@@ -48,10 +48,10 @@ export function VistoriaDetails({ vistoriaId }: VistoriaDetailsProps) {
   const [saving, setSaving] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
 
-  const localVistoriaService = new LocalVistoriaService();
+  const localVistoriaService = useMemo(() => new LocalVistoriaService(), []);
 
   // Carregar dados da vistoria
-  const carregarVistoria = async () => {
+  const carregarVistoria = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -85,14 +85,14 @@ export function VistoriaDetails({ vistoriaId }: VistoriaDetailsProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [vistoriaId, localVistoriaService]);
 
   // Carregar na inicialização
   useEffect(() => {
     if (vistoriaId) {
       carregarVistoria();
     }
-  }, [vistoriaId]);
+  }, [vistoriaId, carregarVistoria]);
 
   // Atualizar status da vistoria
   const handleUpdateStatus = async (novoStatus: VistoriaLocal['status']) => {

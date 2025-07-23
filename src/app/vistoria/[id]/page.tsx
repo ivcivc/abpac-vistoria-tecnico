@@ -93,7 +93,7 @@ export default function VistoriaPage() {
                   <div className="space-y-4">
                     <div className="h-6 bg-muted/50 rounded animate-pulse w-1/3" />
                     {Array.from({ length: 3 }).map((_, i) => (
-                      <div key={i} className="border rounded-lg p-4">
+                      <div key={`vistoria-item-skeleton-${i}`} className="border rounded-lg p-4">
                         <div className="space-y-3">
                           <div className="h-5 bg-muted/50 rounded animate-pulse w-1/2" />
                           <div className="h-4 bg-muted/50 rounded animate-pulse w-3/4" />
