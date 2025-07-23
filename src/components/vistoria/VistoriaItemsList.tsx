@@ -67,17 +67,26 @@ export function VistoriaItemsList({ vistoriaId, onItemUpdate }: VistoriaItemsLis
         console.log('📦 [ITENS-LIST] Itens encontrados:', result.data.itens);
         
         // Mapear itens do backend para o formato esperado
-        const itensFormatados = (result.data.itens || []).map((item: any, index: number) => ({
-          id: item.estoque_remessa_id || item.id || `item_${vistoriaId}_${index}_${Date.now()}`,
-          tipo: item.tipo || item.categoria?.descricao || item.categoria?.nome || 'Item de Vistoria',
-          categoria: item.categoria?.descricao || item.categoria?.nome || 'Categoria não informada',
-          fabricante: item.fabricante?.nome || 'ABPAC',
-          numeroSerie: item.numero_serie || item.numeroSerie || 'N/A',
-          status: item.status || 'pendente',
-          acao: item.acao || 'INSTALAR',
-          observacoes: item.observacoes || '',
-          progresso: item.status === 'concluido' ? 100 : item.status === 'problema' ? 25 : 0
-        }));
+        const itensFormatados = (result.data.itens || []).map((item: any, index: number) => {
+          // Garantir ID único combinando múltiplos identificadores
+          const uniqueId = item.estoque_remessa_id 
+            ? `${item.estoque_remessa_id}_${index}_${Date.now()}`
+            : item.id 
+              ? `${item.id}_${index}_${Date.now()}`
+              : `item_${vistoriaId}_${index}_${Date.now()}`;
+              
+          return {
+            id: uniqueId,
+            tipo: item.tipo || item.categoria?.descricao || item.categoria?.nome || 'Item de Vistoria',
+            categoria: item.categoria?.descricao || item.categoria?.nome || 'Categoria não informada',
+            fabricante: item.fabricante?.nome || 'ABPAC',
+            numeroSerie: item.numero_serie || item.numeroSerie || 'N/A',
+            status: item.status || 'pendente',
+            acao: item.acao || 'INSTALAR',
+            observacoes: item.observacoes || '',
+            progresso: item.status === 'concluido' ? 100 : item.status === 'problema' ? 25 : 0
+          };
+        });
         
         console.log('🔄 [ITENS-LIST] Itens formatados:', itensFormatados);
         setItens(itensFormatados);
@@ -289,7 +298,11 @@ export function VistoriaItemsList({ vistoriaId, onItemUpdate }: VistoriaItemsLis
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => router.push(`/vistoria/${vistoriaId}/item/${item.id}`)}
+                      onClick={() => {
+                        // Extrair o ID original do item para navegação
+                        const originalId = item.id.split('_')[0];
+                        router.push(`/vistoria/${vistoriaId}/item/${originalId}`);
+                      }}
                     >
                       <Settings className="h-4 w-4 mr-1" />
                       Detalhes
