@@ -8,7 +8,6 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-
 import { StatusBadge } from './StatusBadge';
 import { 
   Save, 
@@ -20,7 +19,11 @@ import {
   Trash2,
   Camera,
   Hash,
-  Tag
+  Tag,
+  MapPin,
+  FileText,
+  Copy,
+  AlertCircle
 } from 'lucide-react';
 
 interface ItemDetailProps {
@@ -58,38 +61,36 @@ export function ItemDetail({ item, readOnly, onUpdate }: ItemDetailProps) {
   const validateItem = (): boolean => {
     const errors: Record<string, string> = {};
 
-    // Validações baseadas na ação
-    if (editedItem.acao === 'substituir') {
-      if (!editedItem.numeroSerieNovo?.trim()) {
-        errors.numeroSerieNovo = 'Número de série do novo equipamento é obrigatório para substituições';
-      } else if (editedItem.numeroSerieNovo.trim().length < 3) {
-        errors.numeroSerieNovo = 'Número de série deve ter pelo menos 3 caracteres';
-      } else if (editedItem.numeroSerieNovo.trim().length > 30) {
-        errors.numeroSerieNovo = 'Número de série deve ter no máximo 30 caracteres';
+    // Validações para INSTALAR
+    if ((editedItem as any).acao === 'INSTALAR') {
+      if (!(editedItem as any).numero_serie_executado?.trim()) {
+        errors.numero_serie_executado = 'Número de série executado é obrigatório para instalações';
+      }
+      if (!(editedItem as any).local_instalacao_executado?.trim()) {
+        errors.local_instalacao_executado = 'Local de instalação executado é obrigatório para instalações';
       }
     }
 
-    // Validação para instalação - número de série é obrigatório
-    if (editedItem.acao === 'instalar' && editedItem.status === 'concluido') {
-      if (!editedItem.numeroSerie?.trim()) {
-        errors.numeroSerie = 'Número de série é obrigatório para instalações concluídas';
-      } else if (editedItem.numeroSerie.trim().length < 3) {
-        errors.numeroSerie = 'Número de série deve ter pelo menos 3 caracteres';
-      } else if (editedItem.numeroSerie.trim().length > 30) {
-        errors.numeroSerie = 'Número de série deve ter no máximo 30 caracteres';
+    // Validações para SUBSTITUIR
+    if ((editedItem as any).acao === 'SUBSTITUIR') {
+      if (!(editedItem as any).numero_serie_executado?.trim()) {
+        errors.numero_serie_executado = 'Número de série do novo equipamento é obrigatório para substituições';
+      }
+      if (!(editedItem as any).local_instalacao_executado?.trim()) {
+        errors.local_instalacao_executado = 'Local de instalação executado é obrigatório para substituições';
       }
     }
 
-    // Validação de status concluído
-    if (editedItem.status === 'concluido') {
-      if (!editedItem.observacoes?.trim()) {
-        errors.observacoes = 'Observações são obrigatórias para itens concluídos';
+    // Validações para REMOVER e MANUTENCAO
+    if ((editedItem as any).acao === 'REMOVER' || (editedItem as any).acao === 'MANUTENCAO') {
+      if (!(editedItem as any).local_instalacao_executado?.trim()) {
+        errors.local_instalacao_executado = 'Local de instalação executado é obrigatório';
       }
     }
 
-    // Validação de problemas
-    if (editedItem.status === 'problema' && !editedItem.observacoes?.trim()) {
-      errors.observacoes = 'Descreva o problema encontrado';
+    // Validação de observações do técnico (sempre obrigatórias)
+    if (!(editedItem as any).observacoes_tecnico?.trim()) {
+      errors.observacoes_tecnico = 'Observações do técnico são obrigatórias';
     }
 
     setValidationErrors(errors);
@@ -101,35 +102,67 @@ export function ItemDetail({ item, readOnly, onUpdate }: ItemDetailProps) {
       return;
     }
 
+    // Quando salvar, automaticamente marca como CONCLUIDO
     const updatedItem = {
       ...editedItem,
-      concluido: editedItem.status === 'concluido',
-      dataConclusao: editedItem.status === 'concluido' ? new Date() : editedItem.dataConclusao
-    };
+      status: 'CONCLUIDO',
+      concluido: true,
+      dataConclusao: new Date()
+    } as any;
 
     onUpdate(updatedItem);
     setHasChanges(false);
   };
 
+  const copyToExecuted = (plannedField: string, executedField: string) => {
+    const plannedValue = (editedItem as any)[plannedField];
+    if (plannedValue) {
+      handleFieldChange(executedField, plannedValue);
+    }
+  };
+
   const getActionIcon = (acao: string) => {
-    switch (acao) {
-      case 'verificar': return <Eye className="w-4 h-4" />;
-      case 'instalar': return <Package className="w-4 h-4" />;
-      case 'substituir': return <Wrench className="w-4 h-4" />;
-      case 'remover': return <Trash2 className="w-4 h-4" />;
+    switch (acao?.toUpperCase()) {
+      case 'VERIFICAR': return <Eye className="w-4 h-4" />;
+      case 'INSTALAR': return <Package className="w-4 h-4" />;
+      case 'SUBSTITUIR': return <Wrench className="w-4 h-4" />;
+      case 'REMOVER': return <Trash2 className="w-4 h-4" />;
+      case 'MANUTENCAO': return <Wrench className="w-4 h-4" />;
       default: return <Package className="w-4 h-4" />;
     }
   };
 
   const getActionLabel = (acao: string) => {
-    switch (acao) {
-      case 'verificar': return 'Verificar';
-      case 'instalar': return 'Instalar';
-      case 'substituir': return 'Substituir';
-      case 'remover': return 'Remover';
+    switch (acao?.toUpperCase()) {
+      case 'VERIFICAR': return 'Verificar';
+      case 'INSTALAR': return 'Instalar';
+      case 'SUBSTITUIR': return 'Substituir';
+      case 'REMOVER': return 'Remover';
+      case 'MANUTENCAO': return 'Manutenção';
       default: return acao;
     }
   };
+
+  const getStatusBadge = (status: string) => {
+    const statusMap: Record<string, { label: string; variant: string; color: string }> = {
+      'PENDENTE': { label: 'Pendente', variant: 'secondary', color: 'text-gray-600 bg-gray-100' },
+      'EM_EXECUCAO': { label: 'Em Execução', variant: 'default', color: 'text-blue-600 bg-blue-100' },
+      'CONCLUIDO': { label: 'Concluído', variant: 'default', color: 'text-green-600 bg-green-100' },
+      'APROVADO': { label: 'Aprovado', variant: 'default', color: 'text-emerald-600 bg-emerald-100' },
+      'REQUER_CORRECAO': { label: 'Requer Correção', variant: 'destructive', color: 'text-red-600 bg-red-100' },
+    };
+
+    const config = statusMap[status] || statusMap['PENDENTE'];
+    return (
+      <Badge className={config.color}>
+        {config.label}
+      </Badge>
+    );
+  };
+
+  const itemData = editedItem as any;
+  const acao = itemData.acao?.toUpperCase();
+  const needsPlannedLocation = ['REMOVER', 'MANUTENCAO', 'SUBSTITUIR'].includes(acao);
 
   return (
     <div className="space-y-6">
@@ -138,8 +171,8 @@ export function ItemDetail({ item, readOnly, onUpdate }: ItemDetailProps) {
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-2">
-              {getActionIcon(editedItem.acao)}
-              <span>{getActionLabel(editedItem.acao)} {editedItem.tipo}</span>
+              {getActionIcon(acao)}
+              <span>{getActionLabel(acao)} {itemData.tipo || 'Equipamento'}</span>
             </CardTitle>
             <div className="flex items-center gap-2">
               <Badge variant="outline" className="flex items-center gap-1">
@@ -149,12 +182,7 @@ export function ItemDetail({ item, readOnly, onUpdate }: ItemDetailProps) {
                   : editedItem.categoria
                 }
               </Badge>
-              <Badge variant="outline">
-                                 {typeof editedItem.status === 'object' 
-                   ? (editedItem.status as any)?.descricao || (editedItem.status as any)?.nome || 'Status'
-                   : editedItem.status
-                 }
-              </Badge>
+              {getStatusBadge(itemData.status_item || itemData.status || 'PENDENTE')}
             </div>
           </div>
         </CardHeader>
@@ -171,224 +199,272 @@ export function ItemDetail({ item, readOnly, onUpdate }: ItemDetailProps) {
               </p>
             </div>
             <div>
-              <Label>Modelo</Label>
-              <p className="text-sm font-medium">
-                {typeof editedItem.modelo === 'object' 
-                  ? (editedItem.modelo as any)?.nome || (editedItem.modelo as any)?.descricao || 'Não informado'
-                  : editedItem.modelo || 'Não informado'
-                }
-              </p>
+              <Label>Tipo de Equipamento</Label>
+              <p className="text-sm font-medium">{itemData.tipo || 'Equipamento de Segurança'}</p>
             </div>
           </div>
+        </CardContent>
+      </Card>
 
-          {/* Número de série atual (para referência) */}
-          {editedItem.numeroSerie && (
-            <div>
-              <Label className="flex items-center gap-2">
-                <Hash className="w-4 h-4" />
-                Número de Série Atual
+      {/* 1. INSTRUÇÕES PARA O TÉCNICO */}
+      {itemData.observacoes_planejadas && (
+        <Card className="border-blue-200 bg-blue-50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-blue-800">
+              <FileText className="w-5 h-5" />
+              Instruções para a Vistoria
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="bg-white p-4 rounded border border-blue-200">
+              <p className="text-sm whitespace-pre-wrap font-medium text-blue-900">
+                {itemData.observacoes_planejadas}
+              </p>
+            </div>
+            <p className="text-xs text-blue-600 mt-2">
+              ⚠️ Leia atentamente as instruções antes de iniciar a vistoria
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* 2. LOCALIZAÇÃO DO EQUIPAMENTO */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <MapPin className="w-5 h-5" />
+            Localização do Equipamento
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* 3. Local Planejado (somente para REMOVER, MANUTENCAO, SUBSTITUIR) */}
+          {needsPlannedLocation && itemData.local_instalacao_planejado && (
+            <div className="bg-gray-50 p-4 rounded border">
+              <Label className="text-sm font-medium text-gray-700">
+                Local Onde o Equipamento Foi Instalado/Escondido
               </Label>
-              <p className="text-sm font-medium bg-gray-50 p-2 rounded border">
-                {editedItem.numeroSerie}
+              <p className="text-sm font-medium mt-1 text-gray-900">
+                {itemData.local_instalacao_planejado}
+              </p>
+              <p className="text-xs text-gray-500 mt-1">
+                📍 Localização original do equipamento no veículo
               </p>
             </div>
           )}
 
+          {/* 4. Local Executado (editável) */}
           {!readOnly && (
-            <>
-              {/* Status do item */}
-              <div className="space-y-2">
-                <Label htmlFor="status">Status da Execução *</Label>
-                <select
-                  id="status"
-                  value={editedItem.status}
-                  onChange={(e) => handleFieldChange('status', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="pendente">Pendente</option>
-                  <option value="concluido">Concluído</option>
-                  <option value="problema">Problema</option>
-                </select>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Label htmlFor="local_instalacao_executado">
+                  {acao === 'INSTALAR' ? 'Local Onde Instalou o Equipamento' : 'Local Onde Executou a Ação'} *
+                </Label>
+                {needsPlannedLocation && itemData.local_instalacao_planejado && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => copyToExecuted('local_instalacao_planejado', 'local_instalacao_executado')}
+                    className="h-6 px-2 text-xs"
+                  >
+                    <Copy className="w-3 h-3 mr-1" />
+                    Copiar
+                  </Button>
+                )}
               </div>
-
-              {/* Campo para número de série - INSTALAÇÃO */}
-              {editedItem.acao === 'instalar' && (
-                <div className="space-y-2">
-                  <Label htmlFor="numeroSerie" className="flex items-center gap-2">
-                    <Hash className="w-4 h-4" />
-                    Número de Série do Equipamento {editedItem.status === 'concluido' && '*'}
-                  </Label>
-                  <Input
-                    id="numeroSerie"
-                    value={editedItem.numeroSerie || ''}
-                    onChange={(e) => handleFieldChange('numeroSerie', e.target.value.trim().toUpperCase())}
-                    placeholder="Digite o número de série do equipamento instalado"
-                    className={validationErrors.numeroSerie ? 'border-red-500' : ''}
-                    maxLength={30}
-                  />
-                  {validationErrors.numeroSerie && (
-                    <p className="text-sm text-red-600">{validationErrors.numeroSerie}</p>
-                  )}
-                  <p className="text-xs text-gray-500">
-                    Obrigatório quando o status for "Concluído". Mín: 3, Máx: 30 caracteres.
-                  </p>
-                </div>
+              <Input
+                id="local_instalacao_executado"
+                value={itemData.local_instalacao_executado || ''}
+                onChange={(e) => handleFieldChange('local_instalacao_executado', e.target.value)}
+                placeholder={acao === 'INSTALAR' 
+                  ? "Ex: Debaixo do painel, lado direito, próximo ao pedal"
+                  : "Descreva onde executou a ação"
+                }
+                className={validationErrors.local_instalacao_executado ? 'border-red-500' : ''}
+                maxLength={255}
+              />
+              {validationErrors.local_instalacao_executado && (
+                <p className="text-sm text-red-600">{validationErrors.local_instalacao_executado}</p>
               )}
-
-              {/* Campo para número de série novo - SUBSTITUIÇÃO */}
-              {editedItem.acao === 'substituir' && (
-                <div className="space-y-2">
-                  <Label htmlFor="numeroSerieNovo" className="flex items-center gap-2">
-                    <Hash className="w-4 h-4" />
-                    Número de Série do Novo Equipamento *
-                  </Label>
-                  <Input
-                    id="numeroSerieNovo"
-                    value={editedItem.numeroSerieNovo || ''}
-                    onChange={(e) => handleFieldChange('numeroSerieNovo', e.target.value.trim().toUpperCase())}
-                    placeholder="Digite o número de série do equipamento substituto"
-                    className={validationErrors.numeroSerieNovo ? 'border-red-500' : ''}
-                    maxLength={30}
-                  />
-                  {validationErrors.numeroSerieNovo && (
-                    <p className="text-sm text-red-600">{validationErrors.numeroSerieNovo}</p>
-                  )}
-                  <p className="text-xs text-gray-500">
-                    Obrigatório para substituições. Mín: 3, Máx: 30 caracteres.
-                  </p>
-                </div>
-              )}
-
-              {/* Campo para local de instalação */}
-              <div className="space-y-2">
-                <Label htmlFor="localInstalacao">Local de Instalação</Label>
-                <Input
-                  id="localInstalacao"
-                  value={editedItem.localInstalacao || ''}
-                  onChange={(e) => handleFieldChange('localInstalacao', e.target.value)}
-                  placeholder="Descreva onde o equipamento foi instalado"
-                  maxLength={255}
-                />
-                <p className="text-xs text-gray-500">
-                  Opcional. Descreva o local exato onde o equipamento foi instalado.
-                </p>
-              </div>
-            </>
+              <p className="text-xs text-gray-500">
+                📸 <strong>IMPORTANTE:</strong> Tire foto do equipamento e do local onde foi instalado/escondido
+              </p>
+            </div>
           )}
 
-          {/* Campos em modo somente leitura */}
-          {readOnly && (
-            <>
-              {/* Número de série novo (somente leitura) */}
-              {editedItem.numeroSerieNovo && (
-                <div>
-                  <Label className="flex items-center gap-2">
-                    <Hash className="w-4 h-4" />
-                    Número de Série Novo
-                  </Label>
-                  <p className="text-sm font-medium bg-green-50 p-2 rounded border border-green-200">
-                    {editedItem.numeroSerieNovo}
-                  </p>
-                </div>
-              )}
-
-              {/* Local de instalação (somente leitura) */}
-              {editedItem.localInstalacao && (
-                <div>
-                  <Label>Local de Instalação</Label>
-                  <p className="text-sm font-medium bg-gray-50 p-2 rounded border">
-                    {editedItem.localInstalacao}
-                  </p>
-                </div>
-              )}
-            </>
+          {/* Modo somente leitura */}
+          {readOnly && itemData.local_instalacao_executado && (
+            <div>
+              <Label>Local de Instalação Executado</Label>
+              <p className="text-sm font-medium bg-gray-50 p-2 rounded border">
+                {itemData.local_instalacao_executado}
+              </p>
+            </div>
           )}
         </CardContent>
       </Card>
 
-      {/* Observações */}
+      {/* 5. NÚMERO DE SÉRIE */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Hash className="w-5 h-5" />
+            Número de Série do Equipamento
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Número de série planejado (referência) */}
+          {itemData.numero_serie_planejado && (
+            <div className="bg-gray-50 p-4 rounded border">
+              <Label className="text-sm font-medium text-gray-700">
+                Número de Série Planejado (Referência)
+              </Label>
+              <p className="text-sm font-medium mt-1 text-gray-900 font-mono">
+                {itemData.numero_serie_planejado}
+              </p>
+              <p className="text-xs text-gray-500 mt-1">
+                🏷️ Número de série do equipamento planejado
+              </p>
+            </div>
+          )}
+
+          {/* Número de série executado (editável) */}
+          {!readOnly && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Label htmlFor="numero_serie_executado">
+                  Número de Série Executado *
+                </Label>
+                {itemData.numero_serie_planejado && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => copyToExecuted('numero_serie_planejado', 'numero_serie_executado')}
+                    className="h-6 px-2 text-xs"
+                  >
+                    <Copy className="w-3 h-3 mr-1" />
+                    Copiar
+                  </Button>
+                )}
+              </div>
+              <Input
+                id="numero_serie_executado"
+                value={itemData.numero_serie_executado || ''}
+                onChange={(e) => handleFieldChange('numero_serie_executado', e.target.value.trim().toUpperCase())}
+                placeholder="Digite o número de série do equipamento"
+                className={validationErrors.numero_serie_executado ? 'border-red-500' : ''}
+                maxLength={30}
+              />
+              {validationErrors.numero_serie_executado && (
+                <p className="text-sm text-red-600">{validationErrors.numero_serie_executado}</p>
+              )}
+              <p className="text-xs text-gray-500">
+                📸 <strong>IMPORTANTE:</strong> Tire foto do número de série do equipamento
+              </p>
+            </div>
+          )}
+
+          {/* Modo somente leitura */}
+          {readOnly && itemData.numero_serie_executado && (
+            <div>
+              <Label>Número de Série Executado</Label>
+              <p className="text-sm font-medium bg-green-50 p-2 rounded border border-green-200 font-mono">
+                {itemData.numero_serie_executado}
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* 6. OBSERVAÇÕES DO TÉCNICO */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <AlertTriangle className="w-5 h-5" />
-            Observações
+            Observações do Técnico
           </CardTitle>
         </CardHeader>
         <CardContent>
           {readOnly ? (
             <div>
-              <Label>Observações</Label>
+              <Label>Considerações do Técnico</Label>
               <p className="text-sm mt-2 whitespace-pre-wrap bg-gray-50 p-3 rounded border">
-                {editedItem.observacoes || 'Nenhuma observação registrada'}
+                {itemData.observacoes_tecnico || 'Nenhuma observação registrada'}
               </p>
             </div>
           ) : (
             <div className="space-y-2">
-              <Label htmlFor="observacoes">
-                Observações {(editedItem.status === 'concluido' || editedItem.status === 'problema') && '*'}
+              <Label htmlFor="observacoes_tecnico">
+                Suas Considerações (Dificuldades, Detalhes Relevantes) *
               </Label>
               <textarea
-                id="observacoes"
-                value={editedItem.observacoes || ''}
-                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => handleFieldChange('observacoes', e.target.value)}
-                placeholder="Digite suas observações sobre este item..."
+                id="observacoes_tecnico"
+                value={itemData.observacoes_tecnico || ''}
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => handleFieldChange('observacoes_tecnico', e.target.value)}
+                placeholder="Descreva dificuldades encontradas, detalhes importantes, condições do veículo, etc..."
                 rows={4}
-                className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${validationErrors.observacoes ? 'border-red-500' : ''}`}
+                className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${validationErrors.observacoes_tecnico ? 'border-red-500' : ''}`}
                 maxLength={500}
               />
-              {validationErrors.observacoes && (
-                <p className="text-sm text-red-600">{validationErrors.observacoes}</p>
+              {validationErrors.observacoes_tecnico && (
+                <p className="text-sm text-red-600">{validationErrors.observacoes_tecnico}</p>
               )}
               <p className="text-xs text-gray-500">
-                {editedItem.status === 'concluido' ? 'Obrigatório para itens concluídos.' : 
-                 editedItem.status === 'problema' ? 'Obrigatório para descrever o problema.' : 'Opcional.'} 
-                Máx: 500 caracteres.
+                Obrigatório. Registre suas considerações sobre a execução. Máx: 500 caracteres.
               </p>
             </div>
           )}
         </CardContent>
       </Card>
 
-      {/* Evidências - Placeholder para Task 13 */}
-      <Card>
+      {/* EVIDÊNCIAS - Placeholder para Task 13 */}
+      <Card className="border-orange-200 bg-orange-50">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
+          <CardTitle className="flex items-center gap-2 text-orange-800">
             <Camera className="w-5 h-5" />
-            Evidências
+            Evidências Fotográficas
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="text-center py-8 text-gray-500">
+          <div className="text-center py-8 text-orange-700">
             <Camera className="w-12 h-12 mx-auto mb-4 opacity-50" />
-            <p>Captura de evidências será implementada na Task 13</p>
-            <p className="text-sm">Fotos e vídeos do número de série e local de instalação</p>
+            <p className="font-medium">Captura de evidências será implementada na Task 13</p>
+            <p className="text-sm">Fotos obrigatórias:</p>
+            <ul className="text-sm mt-2 space-y-1">
+              <li>📸 Número de série do equipamento</li>
+              <li>📸 Local onde foi instalado/escondido</li>
+              <li>📸 Equipamento instalado no veículo</li>
+            </ul>
           </div>
         </CardContent>
       </Card>
 
-      {/* Botões de ação */}
+      {/* BOTÕES DE AÇÃO */}
       {!readOnly && (
         <div className="flex gap-3 sticky bottom-4 bg-white p-4 border rounded-lg shadow-lg">
           <Button
             onClick={handleSave}
             disabled={!hasChanges}
-            className="flex-1"
+            className="flex-1 bg-green-600 hover:bg-green-700"
           >
-            <Save className="w-4 h-4 mr-2" />
-            Salvar Alterações
+            <CheckCircle className="w-4 h-4 mr-2" />
+            Salvar e Concluir Item
           </Button>
-          
-          {editedItem.status === 'concluido' && (
-            <Button
-              onClick={handleSave}
-              variant="default"
-              className="flex-1 bg-green-600 hover:bg-green-700"
-            >
-              <CheckCircle className="w-4 h-4 mr-2" />
-              Concluir Item
-            </Button>
-          )}
         </div>
+      )}
+
+      {/* INFORMAÇÕES DE STATUS */}
+      {itemData.status_item === 'CONCLUIDO' && itemData.dataConclusao && (
+        <Card className="border-green-200 bg-green-50">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-2 text-green-800">
+              <CheckCircle className="w-5 h-5" />
+              <span className="font-medium">Item concluído em:</span>
+              <span>{new Date(itemData.dataConclusao).toLocaleString('pt-BR')}</span>
+            </div>
+          </CardContent>
+        </Card>
       )}
     </div>
   );
