@@ -144,9 +144,17 @@ export function ItemDetail({ item, readOnly, onUpdate }: ItemDetailProps) {
             <div className="flex items-center gap-2">
               <Badge variant="outline" className="flex items-center gap-1">
                 <Tag className="w-3 h-3" />
-                {editedItem.categoria}
+                {typeof editedItem.categoria === 'object' 
+                  ? (editedItem.categoria as any)?.descricao || (editedItem.categoria as any)?.nome || 'Categoria'
+                  : editedItem.categoria
+                }
               </Badge>
-              <Badge variant="outline">{editedItem.status}</Badge>
+              <Badge variant="outline">
+                                 {typeof editedItem.status === 'object' 
+                   ? (editedItem.status as any)?.descricao || (editedItem.status as any)?.nome || 'Status'
+                   : editedItem.status
+                 }
+              </Badge>
             </div>
           </div>
         </CardHeader>
@@ -155,11 +163,21 @@ export function ItemDetail({ item, readOnly, onUpdate }: ItemDetailProps) {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <Label>Fabricante</Label>
-              <p className="text-sm font-medium">{editedItem.fabricante}</p>
+              <p className="text-sm font-medium">
+                {typeof editedItem.fabricante === 'object' 
+                  ? (editedItem.fabricante as any)?.nome || (editedItem.fabricante as any)?.descricao || 'Fabricante'
+                  : editedItem.fabricante
+                }
+              </p>
             </div>
             <div>
               <Label>Modelo</Label>
-              <p className="text-sm font-medium">{editedItem.modelo || 'Não informado'}</p>
+              <p className="text-sm font-medium">
+                {typeof editedItem.modelo === 'object' 
+                  ? (editedItem.modelo as any)?.nome || (editedItem.modelo as any)?.descricao || 'Não informado'
+                  : editedItem.modelo || 'Não informado'
+                }
+              </p>
             </div>
           </div>
 
