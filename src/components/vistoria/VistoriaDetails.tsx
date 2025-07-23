@@ -2,12 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { VistoriaItemsList } from '@/components/vistoria/VistoriaItemsList';
-import { ProgressIndicator } from '@/components/vistoria/ProgressIndicator';
+
 import { StatusBadge } from '@/components/vistoria/StatusBadge';
 import { SyncBadge } from '@/components/vistoria/SyncBadge';
 import { ConnectivityIndicator } from '@/components/offline/ConnectivityIndicator';
 import { LocalVistoriaService, VistoriaLocal } from '@/services/vistoria/LocalVistoriaService';
-import { calculateProgressFromStatus, calculateVistoriaProgress } from '@/utils/progressCalculation';
+import { calculateVistoriaProgress } from '@/utils/progressCalculation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -199,8 +199,6 @@ export function VistoriaDetails({ vistoriaId }: VistoriaDetailsProps) {
     );
   }
 
-  const progressInfo = calculateProgressFromStatus(vistoria.status);
-
   return (
     <div className="space-y-6">
       {/* Header com informações principais */}
@@ -222,17 +220,6 @@ export function VistoriaDetails({ vistoriaId }: VistoriaDetailsProps) {
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* Progresso da vistoria */}
-          <ProgressIndicator 
-            value={progressInfo.percentage}
-            label="Progresso da Vistoria"
-            description={progressInfo.description}
-            variant="detailed"
-            size="lg"
-          />
-
-          <Separator />
-
           {/* Informações gerais */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Coluna 1: Informações básicas */}
