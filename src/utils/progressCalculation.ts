@@ -30,9 +30,9 @@ export function calculateVistoriaProgress(itens: VistoriaItem[] = []): ProgressI
   }
 
   const total = itens.length;
-  const completed = itens.filter(item => item.concluido).length;
+  const completed = itens.filter(item => item.status === 'concluido').length;
   const pending = total - completed;
-  const percentage = Math.round((completed / total) * 100);
+  const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
 
   let status: ProgressInfo['status'];
   let description: string;

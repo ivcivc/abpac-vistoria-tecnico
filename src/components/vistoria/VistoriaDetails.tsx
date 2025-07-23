@@ -7,7 +7,7 @@ import { StatusBadge } from '@/components/vistoria/StatusBadge';
 import { SyncBadge } from '@/components/vistoria/SyncBadge';
 import { ConnectivityIndicator } from '@/components/offline/ConnectivityIndicator';
 import { LocalVistoriaService, VistoriaLocal } from '@/services/vistoria/LocalVistoriaService';
-import { calculateProgressFromStatus } from '@/utils/progressCalculation';
+import { calculateProgressFromStatus, calculateVistoriaProgress } from '@/utils/progressCalculation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -313,48 +313,33 @@ export function VistoriaDetails({ vistoriaId }: VistoriaDetailsProps) {
             </div>
             
             <div className="flex items-center space-x-2">
-              <Button
-                onClick={handleSave}
-                disabled={saving}
-                variant="outline"
-                size="sm"
-              >
-                <Save className="h-4 w-4 mr-2" />
-                {saving ? 'Salvando...' : 'Salvar'}
-              </Button>
-              
-              {vistoria.status === 'em_andamento' && (
-                <>
-                  <Button
-                    onClick={() => handleUpdateStatus('pausada')}
-                    disabled={saving}
-                    variant="outline"
-                    size="sm"
-                  >
-                    <Pause className="h-4 w-4 mr-2" />
-                    Pausar
-                  </Button>
-                  
+              {/* Botão Concluir - só aparece quando todos os itens estão concluídos */}
+              {vistoria.status !== 'concluida' && (() => {
+                const progressInfo = calculateVistoriaProgress(vistoria.itens || []);
+                const todosItensConcluidos = progressInfo.percentage === 100;
+                
+                return todosItensConcluidos ? (
                   <Button
                     onClick={handleConcluir}
                     disabled={saving}
                     size="sm"
+                    className="bg-green-600 hover:bg-green-700"
                   >
                     <CheckCircle className="h-4 w-4 mr-2" />
-                    Concluir
+                    Concluir Vistoria
                   </Button>
-                </>
-              )}
+                ) : (
+                  <div className="text-sm text-muted-foreground">
+                    Complete todos os itens para finalizar a vistoria
+                  </div>
+                );
+              })()}
               
-              {vistoria.status === 'pausada' && (
-                <Button
-                  onClick={() => handleUpdateStatus('em_andamento')}
-                  disabled={saving}
-                  size="sm"
-                >
-                  <Play className="h-4 w-4 mr-2" />
-                  Retomar
-                </Button>
+              {vistoria.status === 'concluida' && (
+                <div className="flex items-center text-green-600">
+                  <CheckCircle className="h-4 w-4 mr-2" />
+                  <span className="text-sm font-medium">Vistoria Concluída</span>
+                </div>
               )}
             </div>
           </div>
