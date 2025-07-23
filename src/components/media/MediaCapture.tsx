@@ -52,7 +52,7 @@ export function MediaCapture({
 
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [isCameraActive, setIsCameraActive] = useState(false);
-  const [fotos, setFotos] = useState<MediaFile[]>(fotosExistentes);
+  const [fotos, setFotos] = useState<MediaFile[]>([]);
   const [isCapturing, setIsCapturing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [cameraSupported, setCameraSupported] = useState(true);
@@ -68,10 +68,10 @@ export function MediaCapture({
     };
   }, []);
 
+  // Inicializar fotos apenas uma vez - SEM useEffect que causa loop
   useEffect(() => {
-    // Inicializar fotos apenas quando fotosExistentes mudar de fora
-    setFotos(fotosExistentes);
-  }, [fotosExistentes]);
+    setFotos(fotosExistentes.length > 0 ? fotosExistentes : []);
+  }, []); // SEM dependências para evitar loop
 
   const startCamera = async () => {
     try {
