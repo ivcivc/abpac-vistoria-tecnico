@@ -338,8 +338,9 @@ export function VistoriaDetails({ vistoriaId }: VistoriaDetailsProps) {
       <VistoriaItemsList 
         vistoriaId={vistoria.id}
         onItemUpdate={() => {
-          // Recarregar dados quando um item for atualizado
-          carregarVistoria();
+          // NÃO recarregar dados para evitar loop infinito
+          // Os dados são gerenciados internamente pelo VistoriaItemsList
+          console.log('📝 Item atualizado - sem recarregamento para evitar loop');
         }}
       />
     </div>
