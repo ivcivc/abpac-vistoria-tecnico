@@ -9,6 +9,7 @@ import { Separator } from '@/components/ui/separator';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { StatusBadge } from './StatusBadge';
+import { MediaCapture, MediaFile } from '@/components/media/MediaCapture';
 import { 
   Save, 
   CheckCircle, 
@@ -419,24 +420,74 @@ export function ItemDetail({ item, readOnly, onUpdate }: ItemDetailProps) {
         </CardContent>
       </Card>
 
-      {/* EVIDÊNCIAS - Placeholder para Task 13 */}
-      <Card className="border-orange-200 bg-orange-50">
+      {/* EVIDÊNCIAS FOTOGRÁFICAS */}
+      <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-orange-800">
+          <CardTitle className="flex items-center gap-2">
             <Camera className="w-5 h-5" />
             Evidências Fotográficas
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="text-center py-8 text-orange-700">
-            <Camera className="w-12 h-12 mx-auto mb-4 opacity-50" />
-            <p className="font-medium">Captura de evidências será implementada na Task 13</p>
-            <p className="text-sm">Fotos obrigatórias:</p>
-            <ul className="text-sm mt-2 space-y-1">
-              <li>📸 Número de série do equipamento</li>
-              <li>📸 Local onde foi instalado/escondido</li>
-              <li>📸 Equipamento instalado no veículo</li>
-            </ul>
+        <CardContent className="space-y-6">
+          {/* Foto do Número de Série */}
+          <div>
+            <h4 className="font-medium mb-3 flex items-center gap-2">
+              <Hash className="w-4 h-4" />
+              Foto do Número de Série
+              <Badge className="bg-blue-100 text-blue-800 text-xs">Obrigatória</Badge>
+            </h4>
+            <MediaCapture
+              onCapture={(fotos: MediaFile[]) => {
+                console.log('📸 Fotos do número de série capturadas:', fotos);
+                // TODO: Salvar no armazenamento local
+              }}
+              tipoEvidencia="numero_serie"
+              maxFotos={3}
+              descricao="Foto clara do número de série do equipamento"
+              disabled={readOnly}
+            />
+          </div>
+
+          <Separator />
+
+          {/* Foto do Local de Instalação */}
+          <div>
+            <h4 className="font-medium mb-3 flex items-center gap-2">
+              <MapPin className="w-4 h-4" />
+              Foto do Local de Instalação
+              <Badge className="bg-green-100 text-green-800 text-xs">Obrigatória</Badge>
+            </h4>
+            <MediaCapture
+              onCapture={(fotos: MediaFile[]) => {
+                console.log('📸 Fotos do local de instalação capturadas:', fotos);
+                // TODO: Salvar no armazenamento local
+              }}
+              tipoEvidencia="local_instalacao"
+              maxFotos={3}
+              descricao="Foto do local onde o equipamento foi instalado/escondido"
+              disabled={readOnly}
+            />
+          </div>
+
+          <Separator />
+
+          {/* Outras Evidências */}
+          <div>
+            <h4 className="font-medium mb-3 flex items-center gap-2">
+              <Camera className="w-4 h-4" />
+              Outras Evidências
+              <Badge className="bg-gray-100 text-gray-800 text-xs">Opcional</Badge>
+            </h4>
+            <MediaCapture
+              onCapture={(fotos: MediaFile[]) => {
+                console.log('📸 Outras evidências capturadas:', fotos);
+                // TODO: Salvar no armazenamento local
+              }}
+              tipoEvidencia="outro"
+              maxFotos={2}
+              descricao="Fotos adicionais relevantes para a vistoria"
+              disabled={readOnly}
+            />
           </div>
         </CardContent>
       </Card>
