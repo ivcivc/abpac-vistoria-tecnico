@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { ProgressIndicator } from '@/components/vistoria/ProgressIndicator';
 import { StatusBadge } from '@/components/vistoria/StatusBadge';
@@ -54,7 +54,7 @@ export function VistoriaItemsList({ vistoriaId, onItemUpdate }: VistoriaItemsLis
   const [filtroStatus, setFiltroStatus] = useState<string>('todos');
 
   // Carregar dados reais da vistoria
-  const carregarItens = useCallback(async () => {
+  const carregarItens = async () => {
     try {
       setLoading(true);
       console.log('📋 [ITENS-LIST] Carregando itens para vistoria ID:', vistoriaId);
@@ -100,13 +100,13 @@ export function VistoriaItemsList({ vistoriaId, onItemUpdate }: VistoriaItemsLis
     } finally {
       setLoading(false);
     }
-  }, [vistoriaId]);
+  };
 
   useEffect(() => {
     if (vistoriaId) {
       carregarItens();
     }
-  }, [vistoriaId, carregarItens]);
+  }, [vistoriaId]);
 
   const itensFiltrados = useMemo(() => {
     return itens.filter(item => {
@@ -125,7 +125,7 @@ export function VistoriaItemsList({ vistoriaId, onItemUpdate }: VistoriaItemsLis
       : 0
   }), [itens]);
 
-  const getStatusIcon = useCallback((status: string) => {
+  const getStatusIcon = (status: string) => {
     switch (status) {
       case 'concluido':
         return <CheckCircle className="h-4 w-4 text-green-600" />;
@@ -134,9 +134,9 @@ export function VistoriaItemsList({ vistoriaId, onItemUpdate }: VistoriaItemsLis
       default:
         return <Clock className="h-4 w-4 text-yellow-600" />;
     }
-  }, []);
+  };
 
-  const getAcaoLabel = useCallback((acao: string) => {
+  const getAcaoLabel = (acao: string) => {
     switch (acao) {
       case 'instalar':
         return 'Instalar';
@@ -149,15 +149,15 @@ export function VistoriaItemsList({ vistoriaId, onItemUpdate }: VistoriaItemsLis
       default:
         return acao;
     }
-  }, []);
+  };
 
-  const handleItemAction = useCallback((itemId: string, acao: string) => {
+  const handleItemAction = (itemId: string, acao: string) => {
     console.log(`Ação ${acao} no item ${itemId}`);
     // TODO: Implementar ações reais
     if (onItemUpdate) {
       onItemUpdate();
     }
-  }, [onItemUpdate]);
+  };
 
   if (loading) {
     return (
