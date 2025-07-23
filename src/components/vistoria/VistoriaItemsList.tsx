@@ -7,6 +7,7 @@ import { StatusBadge } from '@/components/vistoria/StatusBadge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { LocalVistoriaService } from '@/services/vistoria/LocalVistoriaService';
 import { 
   Package, 
   CheckCircle, 
@@ -53,52 +54,51 @@ export function VistoriaItemsList({ vistoriaId, onItemUpdate }: VistoriaItemsLis
   const [loading, setLoading] = useState(true);
   const [filtroStatus, setFiltroStatus] = useState<string>('todos');
 
-  // Mock data - em produção viria do serviço
+  // Carregar dados reais da vistoria
   useEffect(() => {
-    const mockItens: VistoriaItem[] = [
-      {
-        id: '1',
-        tipo: 'Equipamento de Proteção',
-        categoria: 'Sistema Principal',
-        fabricante: 'ABPAC',
-        modelo: 'AP-2024',
-        numeroSerie: 'AP240001',
-        status: 'concluido',
-        acao: 'instalar',
-        observacoes: 'Instalação realizada com sucesso',
-        progresso: 100
-      },
-      {
-        id: '2',
-        tipo: 'Sensor de Movimento',
-        categoria: 'Acessório',
-        fabricante: 'ABPAC',
-        modelo: 'SM-100',
-        numeroSerie: 'SM100001',
-        status: 'pendente',
-        acao: 'verificar',
-        observacoes: 'Aguardando verificação',
-        progresso: 0
-      },
-      {
-        id: '3',
-        tipo: 'Central de Controle',
-        categoria: 'Sistema Principal',
-        fabricante: 'ABPAC',
-        modelo: 'CC-500',
-        numeroSerie: 'CC500001',
-        status: 'problema',
-        acao: 'substituir',
-        observacoes: 'Equipamento com defeito, necessária substituição',
-        progresso: 25
+    const carregarItens = async () => {
+      try {
+        setLoading(true);
+        console.log('📋 [ITENS-LIST] Carregando itens para vistoria ID:', vistoriaId);
+        
+        const localService = new LocalVistoriaService();
+        const result = await localService.obterVistoriaPorId(vistoriaId);
+        
+        if (result.success && result.data) {
+          console.log('✅ [ITENS-LIST] Vistoria carregada:', result.data);
+          console.log('📦 [ITENS-LIST] Itens encontrados:', result.data.itens);
+          
+          // Mapear itens do backend para o formato esperado
+          const itensFormatados = (result.data.itens || []).map((item: any, index: number) => ({
+            id: item.id || String(index + 1),
+            tipo: item.tipo || item.categoria?.nome || 'Item de Vistoria',
+            categoria: item.categoria?.nome || 'Categoria não informada',
+            fabricante: item.fabricante?.nome || 'ABPAC',
+            modelo: item.modelo || 'Modelo não informado',
+            numeroSerie: item.numero_serie || item.numeroSerie || 'N/A',
+            status: item.status || 'pendente',
+            acao: item.acao || 'INSTALAR',
+            observacoes: item.observacoes || '',
+            progresso: item.status === 'concluido' ? 100 : item.status === 'problema' ? 25 : 0
+          }));
+          
+          console.log('🔄 [ITENS-LIST] Itens formatados:', itensFormatados);
+          setItens(itensFormatados);
+        } else {
+          console.error('❌ [ITENS-LIST] Erro ao carregar vistoria:', result.error);
+          setItens([]);
+        }
+      } catch (error) {
+        console.error('❌ [ITENS-LIST] Erro ao carregar itens:', error);
+        setItens([]);
+      } finally {
+        setLoading(false);
       }
-    ];
+    };
 
-    // Simular carregamento
-    setTimeout(() => {
-      setItens(mockItens);
-      setLoading(false);
-    }, 1000);
+    if (vistoriaId) {
+      carregarItens();
+    }
   }, [vistoriaId]);
 
   const itensFiltrados = itens.filter(item => {
