@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { MediaCapture, MediaFile } from '@/components/media/MediaCapture';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -17,6 +17,36 @@ import {
 export default function TestVideoCaptureePage() {
   const [medias, setMedias] = useState<MediaFile[]>([]);
   const [logs, setLogs] = useState<string[]>([]);
+  const [browserInfo, setBrowserInfo] = useState<{
+    userAgent: string;
+    protocol: string;
+    hostname: string;
+    mediaDevicesSupported: boolean;
+    getUserMediaSupported: boolean;
+    httpsEnabled: boolean;
+    deviceType: string;
+  } | null>(null);
+
+  // Inicializar informações do navegador apenas no cliente
+  useEffect(() => {
+    const detectBrowserInfo = () => {
+      const userAgent = navigator.userAgent;
+      const deviceType = /iPad|iPhone|iPod/.test(userAgent) ? 'iOS' : 
+                        /Android/i.test(userAgent) ? 'Android' : 'Desktop';
+      
+      setBrowserInfo({
+        userAgent,
+        protocol: window.location.protocol,
+        hostname: window.location.hostname,
+        mediaDevicesSupported: !!navigator.mediaDevices,
+        getUserMediaSupported: !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia),
+        httpsEnabled: window.location.protocol === 'https:' || window.location.hostname === 'localhost',
+        deviceType
+      });
+    };
+
+    detectBrowserInfo();
+  }, []);
 
   const addLog = (message: string) => {
     const timestamp = new Date().toLocaleTimeString('pt-BR');
@@ -86,35 +116,33 @@ export default function TestVideoCaptureePage() {
                 <div className="space-y-2">
                   <div><strong>📱 User Agent:</strong></div>
                   <div className="text-xs bg-gray-100 p-2 rounded font-mono break-all">
-                    {typeof window !== 'undefined' ? window.navigator.userAgent : 'N/A'}
+                    {browserInfo ? browserInfo.userAgent : 'Carregando...'}
                   </div>
                 </div>
                 <div className="space-y-2">
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
                       <strong>🌐 Protocolo:</strong> 
-                      <Badge variant={typeof window !== 'undefined' && window.location.protocol === 'https:' ? 'default' : 'destructive'}>
-                        {typeof window !== 'undefined' ? window.location.protocol : 'N/A'}
+                      <Badge variant={browserInfo?.httpsEnabled ? 'default' : 'destructive'}>
+                        {browserInfo ? browserInfo.protocol : 'Carregando...'}
                       </Badge>
                     </div>
                     <div className="flex items-center gap-2">
                       <strong>📷 MediaDevices:</strong>
-                      <Badge variant={typeof window !== 'undefined' && window.navigator.mediaDevices ? 'default' : 'destructive'}>
-                        {typeof window !== 'undefined' && window.navigator.mediaDevices ? '✅ Disponível' : '❌ Não disponível'}
+                      <Badge variant={browserInfo?.mediaDevicesSupported ? 'default' : 'destructive'}>
+                        {browserInfo?.mediaDevicesSupported ? '✅ Disponível' : '❌ Não disponível'}
                       </Badge>
                     </div>
                     <div className="flex items-center gap-2">
                       <strong>🎥 getUserMedia:</strong>
-                      <Badge variant={typeof window !== 'undefined' && window.navigator.mediaDevices?.getUserMedia ? 'default' : 'destructive'}>
-                        {typeof window !== 'undefined' && window.navigator.mediaDevices?.getUserMedia ? '✅ Disponível' : '❌ Não disponível'}
+                      <Badge variant={browserInfo?.getUserMediaSupported ? 'default' : 'destructive'}>
+                        {browserInfo?.getUserMediaSupported ? '✅ Disponível' : '❌ Não disponível'}
                       </Badge>
                     </div>
                     <div className="flex items-center gap-2">
                       <strong>📱 Dispositivo:</strong>
                       <Badge variant="outline">
-                        {typeof window !== 'undefined' ? 
-                          (/iPad|iPhone|iPod/.test(window.navigator.userAgent) ? 'iOS' : 
-                           /Android/i.test(window.navigator.userAgent) ? 'Android' : 'Desktop') : 'N/A'}
+                        {browserInfo ? browserInfo.deviceType : 'Carregando...'}
                       </Badge>
                     </div>
                   </div>
