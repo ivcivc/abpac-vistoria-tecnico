@@ -117,7 +117,7 @@ export function VistoriasDashboard({ className = '' }: VistoriasDashboardProps) 
         {/* Skeleton para estatísticas */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {Array.from({ length: 4 }).map((_, i) => (
-            <Card key={i}>
+            <Card key={`stats-skeleton-${i}`}>
               <CardContent className="p-6">
                 <div className="space-y-3">
                   <div className="h-4 bg-muted/50 rounded animate-pulse" />
@@ -132,7 +132,7 @@ export function VistoriasDashboard({ className = '' }: VistoriasDashboardProps) 
         {/* Skeleton para vistorias */}
         <div className="space-y-4">
           {Array.from({ length: 3 }).map((_, i) => (
-            <Card key={i}>
+            <Card key={`vistoria-skeleton-${i}`}>
               <CardContent className="p-6">
                 <div className="space-y-4">
                   <div className="h-6 bg-muted/50 rounded animate-pulse" />
