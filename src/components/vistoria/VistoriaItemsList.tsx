@@ -69,7 +69,7 @@ export function VistoriaItemsList({ vistoriaId, onItemUpdate }: VistoriaItemsLis
           
           // Mapear itens do backend para o formato esperado
           const itensFormatados = (result.data.itens || []).map((item: any, index: number) => ({
-            id: item.id || String(index + 1),
+            id: item.estoque_remessa_id || item.id || String(index + 1),
             tipo: item.tipo || item.categoria?.descricao || item.categoria?.nome || 'Item de Vistoria',
             categoria: item.categoria?.descricao || item.categoria?.nome || 'Categoria não informada',
             fabricante: item.fabricante?.nome || 'ABPAC',

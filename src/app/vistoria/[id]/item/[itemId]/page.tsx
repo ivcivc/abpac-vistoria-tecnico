@@ -37,10 +37,24 @@ export default function ItemDetailPage() {
       const vistoriaData = vistoriaResult.data;
       setVistoria(vistoriaData);
 
-      // Procurar o item específico
-      const itemEncontrado = vistoriaData.itens?.find((i: any) => i.id === itemId);
+      console.log('🔍 [DEBUG] ItemId buscado:', itemId);
+      console.log('🔍 [DEBUG] Itens disponíveis:', vistoriaData.itens);
+      console.log('🔍 [DEBUG] Estrutura do primeiro item:', vistoriaData.itens?.[0]);
+
+      // Procurar o item específico usando estoque_remessa_id como ID principal
+      const itemEncontrado = vistoriaData.itens?.find((i: any) => 
+        i.estoque_remessa_id?.toString() === itemId ||
+        i.id?.toString() === itemId
+      );
 
       if (!itemEncontrado) {
+        console.error('❌ [DEBUG] Item não encontrado. IDs disponíveis:', 
+          vistoriaData.itens?.map((i: any) => ({ 
+            id: i.id, 
+            estoque_remessa_id: i.estoque_remessa_id,
+            pre_remessa_id: i.pre_remessa_id 
+          }))
+        );
         throw new Error('Item não encontrado na vistoria');
       }
 

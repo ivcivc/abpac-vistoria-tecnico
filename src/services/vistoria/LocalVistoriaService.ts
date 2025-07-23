@@ -250,8 +250,11 @@ export class LocalVistoriaService {
         };
       }
 
-      // Encontrar e atualizar o item
-      const itemIndex = vistoria.itens.findIndex(item => item.id === itemAtualizado.id);
+      // Encontrar e atualizar o item usando estoque_remessa_id como ID principal
+      const itemIndex = vistoria.itens.findIndex((item: any) => 
+        item.estoque_remessa_id === (itemAtualizado as any).estoque_remessa_id ||
+        item.id === itemAtualizado.id
+      );
       
       if (itemIndex === -1) {
         return {

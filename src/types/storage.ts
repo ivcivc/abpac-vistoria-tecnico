@@ -26,6 +26,7 @@ export interface Vistoria {
 
 export interface VistoriaItem {
   id: string;
+  estoque_remessa_id?: number; // ID do backend
   vistoriaId: string;
   tipo: string;
   categoria: string;
