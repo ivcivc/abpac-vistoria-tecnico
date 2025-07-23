@@ -19,9 +19,7 @@ import {
   Square,
   Play,
   Pause,
-  VolumeX,
-  Smartphone,
-  Monitor
+  VolumeX
 } from 'lucide-react';
 
 export interface MediaFile {
@@ -80,6 +78,7 @@ export function MediaCapture({
   // Estados melhorados para suporte à câmera
   const [cameraSupported, setCameraSupported] = useState<boolean | null>(null); // null = verificando
   const [isRequestingCamera, setIsRequestingCamera] = useState(false);
+  const [shouldRenderVideo, setShouldRenderVideo] = useState(false); // NOVO ESTADO
   const [deviceInfo, setDeviceInfo] = useState<{
     isIOS: boolean;
     isMobile: boolean;
@@ -221,6 +220,16 @@ export function MediaCapture({
     };
   }, []);
 
+  // NOVO: useEffect para iniciar a câmera DEPOIS que o elemento de vídeo for renderizado
+  useEffect(() => {
+    // A condição garante que a câmera só será iniciada quando solicitado (`shouldRenderVideo`),
+    // o elemento de vídeo estiver pronto (`videoRef.current`), e ainda não houver um stream ativo.
+    if (shouldRenderVideo && videoRef.current && !stream) {
+      startCamera();
+    }
+    // A dependência de 'stream' previne múltiplas chamadas caso o stream já tenha sido obtido.
+  }, [shouldRenderVideo, stream]);
+
   // Inicializar mídia apenas uma vez - SEM useEffect que causa loop
   useEffect(() => {
     if (fotosExistentes.length > 0) {
@@ -236,9 +245,8 @@ export function MediaCapture({
 
   const startCamera = async () => {
     try {
-      setError(null);
-      setIsRequestingCamera(true);
-      
+      // O 'isRequestingCamera' agora é controlado pelo 'handleStartCameraClick'.
+      // Apenas iniciamos a lógica de obtenção do stream aqui.
       console.log('📷 Iniciando câmera...');
       console.log('📷 Dispositivo:', deviceInfo);
 
@@ -252,16 +260,16 @@ export function MediaCapture({
         audio: permitirVideo // Incluir áudio apenas se permitir vídeo
       };
 
-             // Ajustes específicos para iOS
-       if (deviceInfo?.isIOS) {
-         console.log('📱 Aplicando configurações específicas para iOS');
-         constraints.video = {
-           ...(constraints.video as MediaTrackConstraints),
-           // iOS funciona melhor com configurações mais simples
-           width: { ideal: 1280 },
-           height: { ideal: 720 }
-         };
-       }
+      // Ajustes específicos para iOS
+      if (deviceInfo?.isIOS) {
+        console.log('📱 Aplicando configurações específicas para iOS');
+        constraints.video = {
+          ...(constraints.video as MediaTrackConstraints),
+          // iOS funciona melhor com configurações mais simples
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        };
+      }
 
       console.log('📷 Constraints:', constraints);
 
@@ -271,112 +279,58 @@ export function MediaCapture({
         active: mediaStream.active,
         tracks: mediaStream.getTracks().length,
         videoTracks: mediaStream.getVideoTracks().length,
-        audioTracks: mediaStream.getAudioTracks().length
+        audioTracks: mediaStream.getAudioTracks().length,
+        videoTrackSettings: mediaStream.getVideoTracks()[0]?.getSettings()
       });
 
+      // NOVA ABORDAGEM SIMPLES E DIRETA
       if (videoRef.current) {
         const videoElement = videoRef.current;
+        
+        // Configurar propriedades essenciais
+        videoElement.autoplay = true;
+        videoElement.playsInline = true;
+        videoElement.muted = true;
+        
+        // Configurar o stream
         videoElement.srcObject = mediaStream;
         
-        console.log('📹 Definindo srcObject, aguardando carregamento...');
+        console.log('📹 Stream configurado no elemento video');
         
-        let metadataLoaded = false;
-        let canPlayLoaded = false;
+        // FORÇAR ATIVAÇÃO IMEDIATA - sem dependência de eventos
+        console.log('🚀 FORÇANDO ativação imediata da câmera');
+        setStream(mediaStream);
+        setIsCameraActive(true);
+        setIsRequestingCamera(false);
+        setError(null); // Limpar qualquer erro anterior
         
-        // Múltiplos event listeners para garantir que funcione
-        const onLoadedMetadata = () => {
-          console.log('✅ onLoadedMetadata disparado:', {
+        // Aguardar um momento e verificar se precisa forçar play
+        setTimeout(async () => {
+          try {
+            if (videoElement.paused) {
+              console.log('📹 Elemento pausado, forçando play...');
+              await videoElement.play();
+              console.log('✅ Play executado com sucesso');
+            }
+                     } catch (playError) {
+             const error = playError as Error;
+             console.log('⚠️ Erro no play automático (normal em alguns navegadores):', error.message);
+             // Não é crítico, o vídeo ainda pode funcionar
+           }
+        }, 100);
+        
+        // Log adicional para debug
+        setTimeout(() => {
+          console.log('🔍 Status final do vídeo:', {
             videoWidth: videoElement.videoWidth,
             videoHeight: videoElement.videoHeight,
-            readyState: videoElement.readyState
+            readyState: videoElement.readyState,
+            paused: videoElement.paused,
+            currentTime: videoElement.currentTime,
+            duration: videoElement.duration,
+            offsetDimensions: `${videoElement.offsetWidth}x${videoElement.offsetHeight}`
           });
-          
-          metadataLoaded = true;
-          checkAndActivateCamera();
-        };
-
-        const onCanPlay = () => {
-          console.log('✅ onCanPlay disparado');
-          canPlayLoaded = true;
-          checkAndActivateCamera();
-        };
-
-        const onLoadedData = () => {
-          console.log('✅ onLoadedData disparado');
-          checkAndActivateCamera();
-        };
-
-                 const checkAndActivateCamera = () => {
-           if (!isCameraActive && mediaStream.active) {
-             console.log('✅ Ativando câmera...');
-             setStream(mediaStream);
-             setIsCameraActive(true);
-             setIsRequestingCamera(false);
-           }
-         };
-
-         // Adicionar múltiplos listeners para garantir compatibilidade
-         videoElement.addEventListener('loadedmetadata', onLoadedMetadata, { once: true });
-         videoElement.addEventListener('canplay', onCanPlay, { once: true });
-         videoElement.addEventListener('loadeddata', onLoadedData, { once: true });
-         
-         // Forçar play para alguns navegadores
-         videoElement.play().catch(err => {
-           console.log('⚠️ Erro ao fazer play automático (normal):', err.message);
-         });
-         
-         // NOVA ESTRATÉGIA: Verificação direta de dimensões do vídeo
-         const checkVideoDimensions = () => {
-           console.log('🔍 Verificando dimensões do vídeo:', {
-             videoWidth: videoElement.videoWidth,
-             videoHeight: videoElement.videoHeight,
-             readyState: videoElement.readyState,
-             networkState: videoElement.networkState
-           });
-           
-           // Se o vídeo tem dimensões válidas, ativar
-           if (videoElement.videoWidth > 0 && videoElement.videoHeight > 0) {
-             console.log('✅ Dimensões válidas detectadas - ativando câmera');
-             checkAndActivateCamera();
-             return true;
-           }
-           return false;
-         };
-
-         // Verificar dimensões periodicamente
-         const dimensionInterval = setInterval(() => {
-           if (checkVideoDimensions()) {
-             clearInterval(dimensionInterval);
-           }
-         }, 100);
-
-         // Limpar interval após 5 segundos
-         setTimeout(() => {
-           clearInterval(dimensionInterval);
-         }, 5000);
-         
-         // Timeout de segurança mais agressivo
-         setTimeout(() => {
-           if (isRequestingCamera && mediaStream.active) {
-             console.log('⏰ Timeout 1s - forçando ativação da câmera');
-             checkVideoDimensions();
-             if (!isCameraActive) {
-               setStream(mediaStream);
-               setIsCameraActive(true);
-               setIsRequestingCamera(false);
-             }
-           }
-         }, 1000);
-
-         // Segundo timeout como fallback
-         setTimeout(() => {
-           if (isRequestingCamera && mediaStream.active) {
-             console.log('⏰ Timeout 2s - forçando ativação final');
-             setStream(mediaStream);
-             setIsCameraActive(true);
-             setIsRequestingCamera(false);
-           }
-         }, 2000);
+        }, 500);
       }
 
     } catch (err) {
@@ -395,29 +349,54 @@ export function MediaCapture({
               : '🚫 Acesso à câmera negado. Clique no ícone da câmera na barra de endereços e permita o acesso.';
             break;
           case 'NotFoundError':
-            errorMessage = '📷 Nenhuma câmera foi encontrada no dispositivo.';
-            break;
-          case 'NotSupportedError':
-            errorMessage = '🚫 Câmera não suportada pelo navegador.';
+            errorMessage = '📷 Nenhuma câmera encontrada no dispositivo.';
             break;
           case 'NotReadableError':
-            errorMessage = '⚠️ Câmera em uso por outro aplicativo. Feche outros apps que possam estar usando a câmera.';
+            errorMessage = '🔒 Câmera está sendo usada por outro aplicativo.';
             break;
           case 'OverconstrainedError':
-            errorMessage = '⚙️ Configurações de câmera não suportadas. Tentando configuração mais simples...';
-            // Tentar novamente com configurações mais simples
+            errorMessage = '⚙️ Configurações de câmera não suportadas. Tentando configuração alternativa...';
+            
+            // Tentar com configurações mais simples
             setTimeout(() => {
               trySimpleCamera();
             }, 1000);
             break;
+          case 'SecurityError':
+            errorMessage = deviceInfo?.isSecure
+              ? '🔐 Erro de segurança ao acessar câmera.'
+              : '🔒 Câmera só funciona em conexões seguras (HTTPS). Use HTTPS ou localhost.';
+            break;
+          case 'AbortError':
+            errorMessage = '⏹️ Operação cancelada pelo usuário.';
+            break;
           default:
-            errorMessage = `❌ Erro: ${err.message}. Verifique as permissões e tente novamente.`;
+            errorMessage = `❌ Erro desconhecido: ${err.message}`;
         }
       }
       
       setError(errorMessage);
-      setIsCameraActive(false);
     }
+  };
+
+  // NOVO: Handler para o clique do botão, que prepara o estado para a ativação.
+  const handleStartCameraClick = () => {
+    setError(null);
+    setIsRequestingCamera(true); // Mostra o estado de carregamento
+    setShouldRenderVideo(true); // Dispara a renderização do elemento <video>
+  };
+
+  // Função para reiniciar tentativa de câmera
+  const retryCamera = () => {
+    console.log('🔄 Reiniciando tentativa de câmera...');
+    
+    // Parar câmera atual se existir e resetar todos os estados
+    stopCamera();
+    
+    // Aguardar um pouco antes de tentar novamente para o DOM atualizar
+    setTimeout(() => {
+      handleStartCameraClick(); // Inicia o fluxo de ativação novamente
+    }, 500);
   };
 
   // Função auxiliar para tentar câmera com configurações simples
@@ -429,30 +408,54 @@ export function MediaCapture({
         video: true,
         audio: false
       });
+      
+      console.log('✅ Stream simples obtido:', {
+        active: mediaStream.active,
+        tracks: mediaStream.getTracks().length,
+        videoTracks: mediaStream.getVideoTracks().length,
+        videoTrackSettings: mediaStream.getVideoTracks()[0]?.getSettings()
+      });
 
       if (videoRef.current) {
         const videoElement = videoRef.current;
+        
+        // Configurar propriedades essenciais
+        videoElement.autoplay = true;
+        videoElement.playsInline = true;
+        videoElement.muted = true;
+        
+        // Configurar o stream
         videoElement.srcObject = mediaStream;
         
-        // Aguardar um pouco para o vídeo carregar
-        setTimeout(() => {
-          console.log('🔄 Verificando se câmera simples carregou:', {
-            videoWidth: videoElement.videoWidth,
-            videoHeight: videoElement.videoHeight,
-            readyState: videoElement.readyState
-          });
-          
-          if (videoElement.videoWidth > 0 || videoElement.readyState >= 1) {
-            setStream(mediaStream);
-            setIsCameraActive(true);
-            setError(null);
-            setIsRequestingCamera(false);
-            console.log('✅ Câmera simples funcionou!');
+        console.log('📹 Stream simples configurado no elemento video');
+        
+        // FORÇAR ATIVAÇÃO IMEDIATA - abordagem direta
+        console.log('🚀 SIMPLE FORÇANDO ativação imediata da câmera');
+        setStream(mediaStream);
+        setIsCameraActive(true);
+        setError(null);
+        setIsRequestingCamera(false);
+        
+        // Aguardar um momento e verificar se precisa forçar play
+        setTimeout(async () => {
+          try {
+            if (videoElement.paused) {
+              console.log('📹 SIMPLE Elemento pausado, forçando play...');
+              await videoElement.play();
+              console.log('✅ SIMPLE Play executado com sucesso');
+            }
+          } catch (playError) {
+            const error = playError as Error;
+            console.log('⚠️ SIMPLE Erro no play automático (normal em alguns navegadores):', error.message);
+            // Não é crítico, o vídeo ainda pode funcionar
           }
-        }, 500);
+        }, 100);
       }
     } catch (err) {
       console.error('❌ Configuração simples também falhou:', err);
+      // Se a configuração simples falhar, mostrar erro detalhado
+      setError('Erro ao acessar câmera mesmo com configurações básicas. Verifique se a câmera não está sendo usada por outro aplicativo.');
+      setIsRequestingCamera(false);
     }
   };
 
@@ -469,17 +472,20 @@ export function MediaCapture({
         track.stop();
         console.log('🛑 Track parado:', track.kind, track.label);
       });
-      setStream(null);
-      setIsCameraActive(false);
     }
+
+    // Resetar todos os estados relevantes para a câmera
+    setStream(null);
+    setIsCameraActive(false);
+    setShouldRenderVideo(false);
+    setIsRequestingCamera(false);
+    setError(null);
 
     // Limpar timer se existir
     if (recordingTimerRef) {
       clearInterval(recordingTimerRef);
       setRecordingTimerRef(null);
     }
-
-    setIsRequestingCamera(false);
   };
 
   const capturePhoto = async () => {
@@ -971,28 +977,7 @@ export function MediaCapture({
         </div>
       </div>
 
-      {/* Informações de diagnóstico (apenas durante desenvolvimento) */}
-      {deviceInfo && (process.env.NODE_ENV === 'development') && (
-        <Card className="border-blue-200 bg-blue-50">
-          <CardContent className="p-3">
-            <div className="text-xs space-y-1">
-              <div className="flex items-center gap-2">
-                {deviceInfo.isMobile ? <Smartphone className="w-3 h-3" /> : <Monitor className="w-3 h-3" />}
-                <span className="font-medium">
-                  {deviceInfo.isIOS ? 'iOS' : 'Desktop'} 
-                  {deviceInfo.isMobile ? ' Mobile' : ''}
-                </span>
-                <Badge variant={deviceInfo.isSecure ? 'default' : 'destructive'} className="text-xs py-0">
-                  {deviceInfo.isSecure ? 'HTTPS' : 'HTTP'}
-                </Badge>
-                <Badge variant={cameraSupported ? 'default' : 'destructive'} className="text-xs py-0">
-                  Câmera: {cameraSupported === null ? 'Verificando...' : cameraSupported ? 'OK' : 'Não suportada'}
-                </Badge>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+
 
       {/* Erro */}
       {error && (
@@ -1024,8 +1009,8 @@ export function MediaCapture({
         </Card>
       )}
 
-      {/* Câmera */}
-      {isCameraActive && (
+      {/* Câmera - Agora controlada por 'shouldRenderVideo' */}
+      {shouldRenderVideo && (
         <Card>
           <CardContent className="p-4">
             <div className="relative">
@@ -1034,53 +1019,66 @@ export function MediaCapture({
                 autoPlay
                 playsInline
                 muted
-                className="w-full h-64 object-cover rounded-lg bg-black"
+                className={`w-full h-64 object-cover rounded-lg bg-black transition-opacity duration-300 ${
+                  isCameraActive ? 'opacity-100' : 'opacity-0'
+                }`}
               />
               
-              <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex gap-2">
-                {/* Botão de foto */}
-                <Button
-                  onClick={capturePhoto}
-                  disabled={isCapturing || isRecording}
-                  className="bg-white text-black hover:bg-gray-100"
-                  title="Tirar foto"
-                >
-                  {isCapturing ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Camera className="w-4 h-4" />
-                  )}
-                </Button>
+              {/* Overlay de Carregamento */}
+              {isRequestingCamera && !error && (
+                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-black bg-opacity-70 text-white rounded-lg">
+                    <Loader2 className="w-8 h-8 animate-spin" />
+                    <p className="mt-2 text-sm">Iniciando câmera...</p>
+                 </div>
+              )}
+              
+              {/* Controles da câmera (visíveis apenas quando ativa) */}
+              {isCameraActive && (
+                <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex gap-2">
+                  {/* Botão de foto */}
+                  <Button
+                    onClick={capturePhoto}
+                    disabled={isCapturing || isRecording}
+                    className="bg-white text-black hover:bg-gray-100"
+                    title="Tirar foto"
+                  >
+                    {isCapturing ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Camera className="w-4 h-4" />
+                    )}
+                  </Button>
 
-                {/* Botões de vídeo (apenas se permitir vídeo) */}
-                {permitirVideo && (
-                  <>
-                    <Button
-                      onClick={isRecording ? stopVideoRecording : startVideoRecording}
-                      disabled={isCapturing || videos.length >= maxVideos}
-                      className={`bg-white hover:bg-gray-100 ${
-                        isRecording ? 'text-red-600 border-red-500' : 'text-black'
-                      }`}
-                      title={isRecording ? 'Parar gravação' : 'Gravar vídeo'}
-                    >
-                      {isRecording ? (
-                        <Square className="w-4 h-4" />
-                      ) : (
-                        <Video className="w-4 h-4" />
-                      )}
-                    </Button>
-                  </>
-                )}
-                
-                <Button
-                  onClick={stopCamera}
-                  variant="outline"
-                  className="bg-white text-black hover:bg-gray-100"
-                  title="Fechar câmera"
-                >
-                  <X className="w-4 h-4" />
-                </Button>
-              </div>
+                  {/* Botões de vídeo (apenas se permitir vídeo) */}
+                  {permitirVideo && (
+                    <>
+                      <Button
+                        onClick={isRecording ? stopVideoRecording : startVideoRecording}
+                        disabled={isCapturing || videos.length >= maxVideos}
+                        className={`bg-white hover:bg-gray-100 ${
+                          isRecording ? 'text-red-600 border-red-500' : 'text-black'
+                        }`}
+                        title={isRecording ? 'Parar gravação' : 'Gravar vídeo'}
+                      >
+                        {isRecording ? (
+                          <Square className="w-4 h-4" />
+                        ) : (
+                          <Video className="w-4 h-4" />
+                        )}
+                      </Button>
+                    </>
+                  )}
+                  
+                  <Button
+                    onClick={stopCamera}
+                    variant="outline"
+                    className="bg-white text-black hover:bg-gray-100"
+                    title="Fechar câmera"
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+              )}
 
               {/* Indicador de tempo de gravação */}
               {isRecording && (
@@ -1098,18 +1096,27 @@ export function MediaCapture({
         </Card>
       )}
 
-      {/* Controles */}
-      {!isCameraActive && !isRequestingCamera && (
+      {/* Controles - Agora controlados por '!shouldRenderVideo' para evitar sobreposição */}
+      {!shouldRenderVideo && (
         <div className="flex gap-2">
           {/* Mostrar botão de câmera apenas se houver suporte confirmado */}
           {cameraSupported === true && (
             <Button
-              onClick={startCamera}
+              onClick={error ? retryCamera : handleStartCameraClick}
               disabled={fotos.length >= maxFotos && (!permitirVideo || videos.length >= maxVideos)}
               className="flex-1"
             >
-              <Camera className="w-4 h-4 mr-2" />
-              {permitirVideo ? 'Câmera/Vídeo' : 'Usar Câmera'}
+              {error ? (
+                <>
+                  <RotateCcw className="w-4 h-4 mr-2" />
+                  Tentar Novamente
+                </>
+              ) : (
+                <>
+                  <Camera className="w-4 h-4 mr-2" />
+                  {permitirVideo ? 'Câmera/Vídeo' : 'Usar Câmera'}
+                </>
+              )}
             </Button>
           )}
           
@@ -1127,7 +1134,7 @@ export function MediaCapture({
       )}
 
       {/* Aviso se câmera não for suportada */}
-      {cameraSupported === false && (
+      {cameraSupported === false && !shouldRenderVideo && (
         <Card className="border-yellow-200 bg-yellow-50">
           <CardContent className="p-4">
             <div className="flex items-center gap-2 text-yellow-700">

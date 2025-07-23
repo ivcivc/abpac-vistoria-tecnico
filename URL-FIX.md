@@ -62,7 +62,7 @@ Esta correção estabelece o padrão:
 
 ✅ **Corrigido e Funcionando**  
 ✅ **Backend:** `localhost:3333/api/health`  
-✅ **Frontend:** `localhost:3001`  
+✅ **Frontend:** `localhost:3000`  
 ✅ **Conectividade:** Resolvida  
 
 ---

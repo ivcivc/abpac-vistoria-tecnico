@@ -58,7 +58,7 @@ nomeEstoque: vistoria.tecnico?.nome || vistoria.estoque?.nome || null
 
 ### **URL Direta para Teste:**
 ```
-http://localhost:3001/login?token=1da66df8d2b911ed2007a7923ae6b79ce8eb6067ad7308453976e5cd3e7427cf
+http://localhost:3000/login?token=1da66df8d2b911ed2007a7923ae6b79ce8eb6067ad7308453976e5cd3e7427cf
 ```
 
 ### **Logs do Console (Implementados):**
@@ -78,4 +78,4 @@ Após a correção, o sistema deve:
 
 **Status:** ✅ **CORRIGIDO**  
 **Teste:** Pronto para validação no navegador  
-**URL:** http://localhost:3001/login?token=1da66df8d2b911ed2007a7923ae6b79ce8eb6067ad7308453976e5cd3e7427cf 
+**URL:** http://localhost:3000/login?token=1da66df8d2b911ed2007a7923ae6b79ce8eb6067ad7308453976e5cd3e7427cf 

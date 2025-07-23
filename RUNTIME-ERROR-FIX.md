@@ -82,7 +82,7 @@ if (!syncService) return defaultResult; // ← FALLBACK
 
 ### **Status Atual:**
 ✅ **Runtime Error:** RESOLVIDO  
-✅ **Sistema:** Funcionando em http://localhost:3001  
+✅ **Sistema:** Funcionando em http://localhost:3000  
 ✅ **Build:** Bem-sucedido  
 ✅ **TypeScript:** Sem erros  
 
@@ -95,7 +95,7 @@ if (!syncService) return defaultResult; // ← FALLBACK
 
 ### **URL para teste do token:**
 ```
-http://localhost:3001/login?token=1da66df8d2b911ed2007a7923ae6b79ce8eb6067ad7308453976e5cd3e7427cf
+http://localhost:3000/login?token=1da66df8d2b911ed2007a7923ae6b79ce8eb6067ad7308453976e5cd3e7427cf
 ```
 
 ### **O que deve funcionar:**
