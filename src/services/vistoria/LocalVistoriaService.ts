@@ -138,20 +138,38 @@ export class LocalVistoriaService {
    */
   async obterVistoriaPorId(id: string): Promise<ServiceResult<VistoriaLocal>> {
     try {
+      console.log('🔍 [LOCAL-SERVICE] Buscando vistoria por ID:', id, '(tipo:', typeof id, ')');
+      
       const query: StorageQuery = {
         field: 'id',
         value: id,
         operator: 'equals',
       };
 
-      const result = await this.crudService.findBy<VistoriaLocal>(STORES.VISTORIAS_LOCAIS, query);
+      console.log('🔍 [LOCAL-SERVICE] Query de busca:', query);
+      let result = await this.crudService.findBy<VistoriaLocal>(STORES.VISTORIAS_LOCAIS, query);
+      console.log('🔍 [LOCAL-SERVICE] Resultado da busca (string):', result);
+
+      // Se não encontrou como string, tentar como number
+      if (!result.success || !result.data || result.data.length === 0) {
+        console.log('🔍 [LOCAL-SERVICE] Tentando buscar como number...');
+        const numericQuery: StorageQuery = {
+          field: 'id',
+          value: parseInt(id, 10),
+          operator: 'equals',
+        };
+        result = await this.crudService.findBy<VistoriaLocal>(STORES.VISTORIAS_LOCAIS, numericQuery);
+        console.log('🔍 [LOCAL-SERVICE] Resultado da busca (number):', result);
+      }
 
       if (result.success && result.data && result.data.length > 0) {
+        console.log('✅ [LOCAL-SERVICE] Vistoria encontrada:', result.data[0]);
         return {
           success: true,
           data: result.data[0],
         };
       } else {
+        console.warn('⚠️ [LOCAL-SERVICE] Nenhuma vistoria encontrada com ID:', id);
         return {
           success: false,
           error: 'Vistoria não encontrada no histórico local',

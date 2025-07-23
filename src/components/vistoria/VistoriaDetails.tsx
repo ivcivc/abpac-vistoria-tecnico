@@ -56,14 +56,28 @@ export function VistoriaDetails({ vistoriaId }: VistoriaDetailsProps) {
       setLoading(true);
       setError(null);
 
+      console.log('🔍 [VISTORIA-DETAILS] Tentando carregar vistoria com ID:', vistoriaId);
+      
+      // DEBUG: Listar todas as vistorias no armazenamento local
+      const todasVistorias = await localVistoriaService.obterVistoriasLocais();
+      console.log('📊 [DEBUG] Todas as vistorias no armazenamento local:', todasVistorias);
+      
+      if (todasVistorias.success && todasVistorias.data) {
+        console.log('📋 [DEBUG] IDs das vistorias encontradas:', 
+          todasVistorias.data.map(v => ({ id: v.id, token: v.token, local: v.local }))
+        );
+      }
+
       const result = await localVistoriaService.obterVistoriaPorId(vistoriaId);
+      console.log('🔍 [DEBUG] Resultado da busca por ID:', result);
 
       if (result.success && result.data) {
         setVistoria(result.data);
         setLastUpdate(new Date());
-        console.log('📋 Vistoria carregada:', result.data);
+        console.log('✅ [VISTORIA-DETAILS] Vistoria carregada com sucesso:', result.data);
       } else {
-        setError(result.error || 'Vistoria não encontrada');
+        console.error('❌ [VISTORIA-DETAILS] Vistoria não encontrada:', result.error);
+        setError(result.error || 'Vistoria não encontrada no histórico local');
       }
     } catch (err) {
       console.error('❌ Erro ao carregar vistoria:', err);

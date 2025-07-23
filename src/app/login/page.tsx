@@ -103,7 +103,7 @@ function LoginPageContent() {
 
           const processedData = {
             // Dados básicos da vistoria (CORRIGIDOS para estrutura real)
-            id: serverData.id || 'N/A',
+            id: serverData.id ? String(serverData.id) : 'N/A',
             local: serverData.local_vistoria || serverData.endereco || 'Endereço não informado',
             cidade: serverData.cidade || 'Cidade não informada',
             dataAgendada:
