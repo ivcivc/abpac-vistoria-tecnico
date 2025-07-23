@@ -71,10 +71,10 @@ export function VistoriaItemsList({ vistoriaId, onItemUpdate }: VistoriaItemsLis
           // Mapear itens do backend para o formato esperado
           const itensFormatados = (result.data.itens || []).map((item: any, index: number) => ({
             id: item.id || String(index + 1),
-            tipo: item.tipo || item.categoria?.nome || 'Item de Vistoria',
-            categoria: item.categoria?.nome || 'Categoria não informada',
+            tipo: item.tipo || item.categoria?.descricao || item.categoria?.nome || 'Item de Vistoria',
+            categoria: item.categoria?.descricao || item.categoria?.nome || 'Categoria não informada',
             fabricante: item.fabricante?.nome || 'ABPAC',
-            modelo: item.modelo || 'Modelo não informado',
+            modelo: item.modelo || '', // Removido "Modelo não informado"
             numeroSerie: item.numero_serie || item.numeroSerie || 'N/A',
             status: item.status || 'pendente',
             acao: item.acao || 'INSTALAR',
@@ -253,7 +253,7 @@ export function VistoriaItemsList({ vistoriaId, onItemUpdate }: VistoriaItemsLis
                       <Badge variant="outline">{getAcaoLabel(item.acao)}</Badge>
                     </div>
                     <p className="text-sm text-muted-foreground">
-                      {item.fabricante} • {item.modelo} • {item.categoria}
+                      {[item.fabricante, item.modelo, item.categoria].filter(Boolean).join(' • ')}
                     </p>
                     <p className="text-xs text-muted-foreground">
                       Nº Série: {item.numeroSerie}
