@@ -248,9 +248,6 @@ export function VistoriaItemsList({ vistoriaId, onItemUpdate }: VistoriaItemsLis
                     <div className="flex items-center space-x-2">
                       {getStatusIcon(item.status)}
                       <h4 className="font-semibold">{item.tipo}</h4>
-                      <Badge variant="secondary" className="bg-blue-100 text-blue-800 hover:bg-blue-200">
-                        {item.categoria}
-                      </Badge>
                       <Badge variant="outline">{getAcaoLabel(item.acao)}</Badge>
                     </div>
                     <p className="text-sm text-muted-foreground">
