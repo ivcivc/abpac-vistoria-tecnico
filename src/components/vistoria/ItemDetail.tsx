@@ -37,11 +37,20 @@ export function ItemDetail({ item, readOnly, onUpdate }: ItemDetailProps) {
   const [editedItem, setEditedItem] = useState<VistoriaItem>(item);
   const [hasChanges, setHasChanges] = useState(false);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+  
+  // Estados para rastrear fotos capturadas
+  const [fotosNumeroSerie, setFotosNumeroSerie] = useState<MediaFile[]>([]);
+  const [fotosLocalInstalacao, setFotosLocalInstalacao] = useState<MediaFile[]>([]);
+  const [fotosOutrasEvidencias, setFotosOutrasEvidencias] = useState<MediaFile[]>([]);
 
   useEffect(() => {
     setEditedItem(item);
     setHasChanges(false);
     setValidationErrors({});
+    // Reset das fotos quando item mudar
+    setFotosNumeroSerie([]);
+    setFotosLocalInstalacao([]);
+    setFotosOutrasEvidencias([]);
   }, [item]);
 
   const handleFieldChange = (field: string, value: any) => {
@@ -98,6 +107,45 @@ export function ItemDetail({ item, readOnly, onUpdate }: ItemDetailProps) {
     return Object.keys(errors).length === 0;
   };
 
+  // Verifica se todos os campos obrigatórios estão preenchidos
+  const isFormValid = (): boolean => {
+    const acao = (editedItem as any).acao?.toUpperCase();
+    
+    // Observações do técnico são sempre obrigatórias
+    if (!(editedItem as any).observacoes_tecnico?.trim()) {
+      return false;
+    }
+
+    // Validações específicas por ação
+    if (acao === 'INSTALAR' || acao === 'SUBSTITUIR') {
+      if (!(editedItem as any).numero_serie_executado?.trim()) {
+        return false;
+      }
+      if (!(editedItem as any).local_instalacao_executado?.trim()) {
+        return false;
+      }
+      // Validar fotos obrigatórias para INSTALAR/SUBSTITUIR
+      if (fotosNumeroSerie.length < 1) {
+        return false;
+      }
+      if (fotosLocalInstalacao.length < 1) {
+        return false;
+      }
+    }
+
+    if (acao === 'REMOVER' || acao === 'MANUTENCAO') {
+      if (!(editedItem as any).local_instalacao_executado?.trim()) {
+        return false;
+      }
+      // Validar foto obrigatória do local para REMOVER/MANUTENCAO
+      if (fotosLocalInstalacao.length < 1) {
+        return false;
+      }
+    }
+
+    return true;
+  };
+
   const handleSave = () => {
     if (!validateItem()) {
       return;
@@ -108,7 +156,11 @@ export function ItemDetail({ item, readOnly, onUpdate }: ItemDetailProps) {
       ...editedItem,
       status: 'CONCLUIDO',
       concluido: true,
-      dataConclusao: new Date()
+      dataConclusao: new Date(),
+      // Salvar referências das fotos capturadas
+      fotos_numero_serie: fotosNumeroSerie,
+      fotos_local_instalacao: fotosLocalInstalacao,
+      fotos_outras_evidencias: fotosOutrasEvidencias
     } as any;
 
     onUpdate(updatedItem);
@@ -439,7 +491,8 @@ export function ItemDetail({ item, readOnly, onUpdate }: ItemDetailProps) {
             <MediaCapture
               onCapture={(fotos: MediaFile[]) => {
                 console.log('📸 Fotos do número de série capturadas:', fotos);
-                // TODO: Salvar no armazenamento local
+                setFotosNumeroSerie(fotos);
+                setHasChanges(true);
               }}
               tipoEvidencia="numero_serie"
               minFotos={1}
@@ -460,7 +513,8 @@ export function ItemDetail({ item, readOnly, onUpdate }: ItemDetailProps) {
             <MediaCapture
               onCapture={(fotos: MediaFile[]) => {
                 console.log('📸 Fotos do local de instalação capturadas:', fotos);
-                // TODO: Salvar no armazenamento local
+                setFotosLocalInstalacao(fotos);
+                setHasChanges(true);
               }}
               tipoEvidencia="local_instalacao"
               minFotos={1}
@@ -481,7 +535,8 @@ export function ItemDetail({ item, readOnly, onUpdate }: ItemDetailProps) {
             <MediaCapture
               onCapture={(fotos: MediaFile[]) => {
                 console.log('📸 Outras evidências capturadas:', fotos);
-                // TODO: Salvar no armazenamento local
+                setFotosOutrasEvidencias(fotos);
+                setHasChanges(true);
               }}
               tipoEvidencia="outro"
               minFotos={0}
@@ -497,7 +552,7 @@ export function ItemDetail({ item, readOnly, onUpdate }: ItemDetailProps) {
         <div className="flex gap-3 sticky bottom-4 bg-white p-4 border rounded-lg shadow-lg">
           <Button
             onClick={handleSave}
-            disabled={!hasChanges}
+            disabled={!hasChanges || !isFormValid()}
             className="flex-1 bg-green-600 hover:bg-green-700"
           >
             <CheckCircle className="w-4 h-4 mr-2" />
