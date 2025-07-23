@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { ItemDetail } from '@/components/vistoria/ItemDetail';
 import { LocalVistoriaService, VistoriaLocal } from '@/services/vistoria/LocalVistoriaService';
@@ -20,14 +20,13 @@ export default function ItemDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const localVistoriaService = new LocalVistoriaService();
-
-  const carregarDados = async () => {
+  const carregarDados = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
 
       console.log('🔍 Carregando vistoria:', vistoriaId);
+      const localVistoriaService = new LocalVistoriaService();
       const vistoriaResult = await localVistoriaService.obterVistoriaPorId(vistoriaId);
 
       if (!vistoriaResult.success || !vistoriaResult.data) {
@@ -66,12 +65,13 @@ export default function ItemDetailPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [vistoriaId, itemId]);
 
-  const handleItemUpdate = async (itemAtualizado: VistoriaItem) => {
+  const handleItemUpdate = useCallback(async (itemAtualizado: VistoriaItem) => {
     try {
       console.log('💾 Salvando item atualizado:', itemAtualizado);
 
+      const localVistoriaService = new LocalVistoriaService();
       const result = await localVistoriaService.atualizarItem(vistoriaId, itemAtualizado);
 
       if (result.success) {
@@ -81,8 +81,8 @@ export default function ItemDetailPage() {
         // Mostrar feedback visual
         // TODO: Implementar toast/notification na Task futura
         
-        // Atualizar dados para refletir mudanças
-        await carregarDados();
+        // NÃO recarregar dados para evitar loop infinito
+        // Os dados já foram atualizados no estado local
       } else {
         throw new Error(result.error || 'Erro ao salvar item');
       }
@@ -90,7 +90,7 @@ export default function ItemDetailPage() {
       console.error('❌ Erro ao salvar item:', err);
       setError(err instanceof Error ? err.message : 'Erro ao salvar');
     }
-  };
+  }, [vistoriaId]);
 
   const voltarParaVistoria = () => {
     router.push(`/vistoria/${vistoriaId}`);
@@ -100,7 +100,7 @@ export default function ItemDetailPage() {
     if (vistoriaId && itemId) {
       carregarDados();
     }
-  }, [vistoriaId, itemId]);
+  }, [vistoriaId, itemId, carregarDados]);
 
   // Loading state
   if (loading) {
