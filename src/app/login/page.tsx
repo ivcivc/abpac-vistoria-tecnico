@@ -23,6 +23,7 @@ function LoginPageContent() {
   const [vistoriaInfo, setVistoriaInfo] = useState<any>(null);
   const [additionalError, setAdditionalError] = useState<string>('');
   const [autoValidationAttempted, setAutoValidationAttempted] = useState(false);
+  const [currentToken, setCurrentToken] = useState<string>('');
 
   // useSearchParams DEVE estar dentro de um componente wrappado por Suspense
   const searchParams = useSearchParams();
@@ -202,6 +203,9 @@ function LoginPageContent() {
 
           // ADICIONADO: Definir vistoria atual no contexto
           setCurrentVistoria(processedVistoriaInfo);
+          
+          // ADICIONADO: Armazenar o token atual
+          setCurrentToken(token);
 
           setVistoriaInfo(processedVistoriaInfo);
           setCurrentStep(AuthStep.TECHNICIAN_IDENTIFICATION);
@@ -222,40 +226,72 @@ function LoginPageContent() {
     }
   };
 
-  const handleTechnicianSubmit = (data: { name: string }) => {
+  const handleTechnicianSubmit = async (data: { name: string }) => {
     if (!data.name || !data.name.trim()) {
       setAdditionalError('Nome do técnico é obrigatório');
       return;
     }
 
     setCurrentStep(AuthStep.COMPLETING);
-    console.log('🚀 REDIRECIONAMENTO FORÇADO: Iniciando redirecionamento imediato...');
+    console.log('💾 Salvando vistoria no armazenamento local...');
 
     // Definir o nome do técnico
-    setTechnicianName(data.name.trim());
+    const technicianName = data.name.trim();
+    setTechnicianName(technicianName);
 
-    // REDIRECIONAMENTO IMEDIATO E AGRESSIVO
-    console.log('🔄 FORÇANDO redirecionamento IMEDIATAMENTE...');
+    // NOVO: Salvar a vistoria no armazenamento local
+    if (vistoriaInfo && currentToken) {
+      try {
+        const { LocalVistoriaService } = await import('@/services/vistoria/LocalVistoriaService');
+        const localService = new LocalVistoriaService();
+
+        console.log('💾 Salvando vistoria no histórico local:', {
+          id: vistoriaInfo.id,
+          token: currentToken,
+          local: vistoriaInfo.local,
+          tecnicoNome: technicianName
+        });
+
+        // Converter dados para o formato esperado pelo LocalVistoriaService
+        const dadosVistoria = {
+          id: vistoriaInfo.id,
+          local: vistoriaInfo.local,
+          dataAgendada: vistoriaInfo.dataAgendada,
+          tipoVistoria: vistoriaInfo.tipoVistoria,
+          veiculo: vistoriaInfo.veiculo,
+          itens: vistoriaInfo.itens || []
+        };
+
+        const resultado = await localService.adicionarVistoriaAcessada(
+          currentToken,
+          dadosVistoria,
+          technicianName
+        );
+
+        if (resultado.success) {
+          console.log('✅ Vistoria salva com sucesso no histórico local');
+        } else {
+          console.error('❌ Erro ao salvar vistoria:', resultado.error);
+        }
+      } catch (error) {
+        console.error('❌ Erro ao salvar vistoria no armazenamento local:', error);
+      }
+    }
+
+    // REDIRECIONAMENTO APÓS SALVAR
+    console.log('🚀 Redirecionando para dashboard...');
 
     // Método 1: Redirecionamento imediato com window.location
     setTimeout(() => {
-      console.log('🚀 REDIRECIONAMENTO FORÇADO: window.location.href');
+      console.log('🚀 REDIRECIONAMENTO: window.location.href');
       window.location.href = '/dashboard';
-    }, 100);
+    }, 200);
 
     // Método 2: Fallback com replace
     setTimeout(() => {
-      console.log('🚀 REDIRECIONAMENTO FORÇADO: window.location.replace');
+      console.log('🚀 REDIRECIONAMENTO FALLBACK: window.location.replace');
       window.location.replace('/dashboard');
-    }, 500);
-
-    // Método 3: Fallback final
-    setTimeout(() => {
-      console.log('🚀 REDIRECIONAMENTO FORÇADO: location.assign');
-      window.location.assign('/dashboard');
-    }, 1000);
-
-    // REMOVIDO: toda a lógica complexa de checkAuthAndRedirect
+    }, 800);
   };
 
   // Combinar erros do AuthContext e erros locais
