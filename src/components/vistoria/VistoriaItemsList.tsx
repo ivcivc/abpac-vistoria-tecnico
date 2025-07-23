@@ -54,57 +54,59 @@ export function VistoriaItemsList({ vistoriaId, onItemUpdate }: VistoriaItemsLis
   const [filtroStatus, setFiltroStatus] = useState<string>('todos');
 
   // Carregar dados reais da vistoria
-  useEffect(() => {
-    const carregarItens = async () => {
-      try {
-        setLoading(true);
-        console.log('📋 [ITENS-LIST] Carregando itens para vistoria ID:', vistoriaId);
+  const carregarItens = useCallback(async () => {
+    try {
+      setLoading(true);
+      console.log('📋 [ITENS-LIST] Carregando itens para vistoria ID:', vistoriaId);
+      
+      const localService = new LocalVistoriaService();
+      const result = await localService.obterVistoriaPorId(vistoriaId);
+      
+      if (result.success && result.data) {
+        console.log('✅ [ITENS-LIST] Vistoria carregada:', result.data);
+        console.log('📦 [ITENS-LIST] Itens encontrados:', result.data.itens);
         
-        const localService = new LocalVistoriaService();
-        const result = await localService.obterVistoriaPorId(vistoriaId);
+        // Mapear itens do backend para o formato esperado
+        const itensFormatados = (result.data.itens || []).map((item: any, index: number) => ({
+          id: item.estoque_remessa_id || item.id || `item_${vistoriaId}_${index}_${Date.now()}`,
+          tipo: item.tipo || item.categoria?.descricao || item.categoria?.nome || 'Item de Vistoria',
+          categoria: item.categoria?.descricao || item.categoria?.nome || 'Categoria não informada',
+          fabricante: item.fabricante?.nome || 'ABPAC',
+          numeroSerie: item.numero_serie || item.numeroSerie || 'N/A',
+          status: item.status || 'pendente',
+          acao: item.acao || 'INSTALAR',
+          observacoes: item.observacoes || '',
+          progresso: item.status === 'concluido' ? 100 : item.status === 'problema' ? 25 : 0
+        }));
         
-        if (result.success && result.data) {
-          console.log('✅ [ITENS-LIST] Vistoria carregada:', result.data);
-          console.log('📦 [ITENS-LIST] Itens encontrados:', result.data.itens);
-          
-          // Mapear itens do backend para o formato esperado
-          const itensFormatados = (result.data.itens || []).map((item: any, index: number) => ({
-            id: item.estoque_remessa_id || item.id || `item_${vistoriaId}_${index}_${Date.now()}`,
-            tipo: item.tipo || item.categoria?.descricao || item.categoria?.nome || 'Item de Vistoria',
-            categoria: item.categoria?.descricao || item.categoria?.nome || 'Categoria não informada',
-            fabricante: item.fabricante?.nome || 'ABPAC',
-            numeroSerie: item.numero_serie || item.numeroSerie || 'N/A',
-            status: item.status || 'pendente',
-            acao: item.acao || 'INSTALAR',
-            observacoes: item.observacoes || '',
-            progresso: item.status === 'concluido' ? 100 : item.status === 'problema' ? 25 : 0
-          }));
-          
-          console.log('🔄 [ITENS-LIST] Itens formatados:', itensFormatados);
-          setItens(itensFormatados);
-        } else {
-          console.error('❌ [ITENS-LIST] Erro ao carregar vistoria:', result.error);
-          setItens([]);
-        }
-      } catch (error) {
-        console.error('❌ [ITENS-LIST] Erro ao carregar itens:', error);
+        console.log('🔄 [ITENS-LIST] Itens formatados:', itensFormatados);
+        setItens(itensFormatados);
+      } else {
+        console.error('❌ [ITENS-LIST] Erro ao carregar vistoria:', result.error);
         setItens([]);
-      } finally {
-        setLoading(false);
       }
-    };
-
-    if (vistoriaId) {
-      carregarItens();
+    } catch (error) {
+      console.error('❌ [ITENS-LIST] Erro ao carregar itens:', error);
+      setItens([]);
+    } finally {
+      setLoading(false);
     }
   }, [vistoriaId]);
 
-  const itensFiltrados = itens.filter(item => {
-    if (filtroStatus === 'todos') return true;
-    return item.status === filtroStatus;
-  });
+  useEffect(() => {
+    if (vistoriaId) {
+      carregarItens();
+    }
+  }, [vistoriaId, carregarItens]);
 
-  const estatisticas = {
+  const itensFiltrados = useMemo(() => {
+    return itens.filter(item => {
+      if (filtroStatus === 'todos') return true;
+      return item.status === filtroStatus;
+    });
+  }, [itens, filtroStatus]);
+
+  const estatisticas = useMemo(() => ({
     total: itens.length,
     concluidos: itens.filter(i => i.status === 'concluido').length,
     pendentes: itens.filter(i => i.status === 'pendente').length,
@@ -112,9 +114,9 @@ export function VistoriaItemsList({ vistoriaId, onItemUpdate }: VistoriaItemsLis
     progressoGeral: itens.length > 0 
       ? Math.round(itens.reduce((acc, item) => acc + item.progresso, 0) / itens.length)
       : 0
-  };
+  }), [itens]);
 
-  const getStatusIcon = (status: string) => {
+  const getStatusIcon = useCallback((status: string) => {
     switch (status) {
       case 'concluido':
         return <CheckCircle className="h-4 w-4 text-green-600" />;
@@ -123,9 +125,9 @@ export function VistoriaItemsList({ vistoriaId, onItemUpdate }: VistoriaItemsLis
       default:
         return <Clock className="h-4 w-4 text-yellow-600" />;
     }
-  };
+  }, []);
 
-  const getAcaoLabel = (acao: string) => {
+  const getAcaoLabel = useCallback((acao: string) => {
     switch (acao) {
       case 'instalar':
         return 'Instalar';
@@ -138,15 +140,15 @@ export function VistoriaItemsList({ vistoriaId, onItemUpdate }: VistoriaItemsLis
       default:
         return acao;
     }
-  };
+  }, []);
 
-  const handleItemAction = (itemId: string, acao: string) => {
+  const handleItemAction = useCallback((itemId: string, acao: string) => {
     console.log(`Ação ${acao} no item ${itemId}`);
     // TODO: Implementar ações reais
     if (onItemUpdate) {
       onItemUpdate();
     }
-  };
+  }, [onItemUpdate]);
 
   if (loading) {
     return (
@@ -160,7 +162,7 @@ export function VistoriaItemsList({ vistoriaId, onItemUpdate }: VistoriaItemsLis
         <CardContent>
           <div className="space-y-4">
             {Array.from({ length: 3 }).map((_, i) => (
-              <div key={i} className="border rounded-lg p-4">
+              <div key={`vistoria-items-skeleton-${i}`} className="border rounded-lg p-4">
                 <div className="animate-pulse space-y-3">
                   <div className="h-5 bg-muted/50 rounded w-1/2" />
                   <div className="h-4 bg-muted/50 rounded w-3/4" />
@@ -225,7 +227,7 @@ export function VistoriaItemsList({ vistoriaId, onItemUpdate }: VistoriaItemsLis
           <span className="text-sm font-medium">Filtrar por:</span>
           {['todos', 'pendente', 'concluido', 'problema'].map((status) => (
             <Button
-              key={status}
+              key={`filtro-status-${status}`}
               variant={filtroStatus === status ? 'default' : 'outline'}
               size="sm"
               onClick={() => setFiltroStatus(status)}
