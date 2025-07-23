@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { ProgressIndicator } from '@/components/vistoria/ProgressIndicator';
 import { StatusBadge } from '@/components/vistoria/StatusBadge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,7 +15,8 @@ import {
   Settings,
   Camera,
   FileText,
-  Plus
+  Plus,
+  ChevronRight
 } from 'lucide-react';
 
 interface VistoriaItem {
@@ -46,6 +48,7 @@ interface VistoriaItemsListProps {
  * - Filtros por status
  */
 export function VistoriaItemsList({ vistoriaId, onItemUpdate }: VistoriaItemsListProps) {
+  const router = useRouter();
   const [itens, setItens] = useState<VistoriaItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [filtroStatus, setFiltroStatus] = useState<string>('todos');
@@ -286,10 +289,10 @@ export function VistoriaItemsList({ vistoriaId, onItemUpdate }: VistoriaItemsLis
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => handleItemAction(item.id, 'editar')}
+                      onClick={() => router.push(`/vistoria/${vistoriaId}/item/${item.id}`)}
                     >
                       <Settings className="h-4 w-4 mr-1" />
-                      Editar
+                      Detalhes
                     </Button>
                     <Button
                       variant="outline"

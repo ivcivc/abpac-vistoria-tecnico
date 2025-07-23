@@ -202,6 +202,58 @@ export class LocalVistoriaService {
   }
 
   /**
+   * Atualiza um item específico de uma vistoria
+   */
+  async atualizarItem(vistoriaId: string, itemAtualizado: VistoriaItem): Promise<ServiceResult> {
+    try {
+      // Primeiro, obter a vistoria atual
+      const vistoriaResult = await this.obterVistoriaPorId(vistoriaId);
+
+      if (!vistoriaResult.success || !vistoriaResult.data) {
+        return {
+          success: false,
+          error: 'Vistoria não encontrada',
+        };
+      }
+
+      const vistoria = vistoriaResult.data;
+
+      // Encontrar e atualizar o item
+      const itemIndex = vistoria.itens.findIndex(item => item.id === itemAtualizado.id);
+      
+      if (itemIndex === -1) {
+        return {
+          success: false,
+          error: 'Item não encontrado na vistoria',
+        };
+      }
+
+      // Atualizar o item
+      vistoria.itens[itemIndex] = itemAtualizado;
+
+      // Atualizar a vistoria no armazenamento
+      const vistoriaAtualizada = {
+        ...vistoria,
+        dataAcesso: new Date().toISOString(),
+      };
+
+      const updateResult = await this.crudService.update(STORES.VISTORIAS_LOCAIS, vistoriaAtualizada);
+
+      if (updateResult.success) {
+        console.log(`✅ Item ${itemAtualizado.id} da vistoria ${vistoriaId} atualizado`);
+      }
+
+      return updateResult;
+    } catch (error) {
+      console.error('❌ Erro ao atualizar item:', error);
+      return {
+        success: false,
+        error: 'Erro interno ao atualizar item',
+      };
+    }
+  }
+
+  /**
    * Remove uma vistoria do histórico local
    */
   async removerVistoria(id: string): Promise<ServiceResult> {
