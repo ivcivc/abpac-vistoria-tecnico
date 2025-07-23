@@ -1,0 +1,7 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="256" cy="256" r="256" fill="#E30613"/>
+  <circle cx="256" cy="256" r="200" fill="#000000"/>
+  <text x="256" y="230" text-anchor="middle" fill="#FFFFFF" font-family="Arial, sans-serif" font-size="48" font-weight="bold">ABPAC</text>
+  <text x="256" y="280" text-anchor="middle" fill="#E30613" font-family="Arial, sans-serif" font-size="20" font-weight="normal">VISTORIA</text>
+  <circle cx="256" cy="256" r="240" fill="none" stroke="#FFFFFF" stroke-width="4"/>
+</svg>

@@ -1,7 +1,16 @@
-import type { NextConfig } from "next";
+import type { NextConfig } from 'next';
+
+// PWA COMPLETAMENTE REMOVIDO - CAUSANDO PROBLEMAS DE CACHE
+// const withPWA = require('next-pwa')({ ... });
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  reactStrictMode: true,
+  images: {
+    domains: ['localhost'],
+    formats: ['image/webp', 'image/avif'],
+    unoptimized: process.env.NODE_ENV === 'development' // Desabilitar otimização em dev
+  },
+  // Headers de PWA removidos junto com a funcionalidade
 };
 
-export default nextConfig;
+export default nextConfig; // PWA REMOVIDO COMPLETAMENTE

@@ -1,36 +1,84 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Sistema de Vistorias Técnicas ABPAC
 
-## Getting Started
+Sistema para gerenciamento de vistorias técnicas da ABPAC, desenvolvido com Next.js, TypeScript e Shadcn UI.
 
-First, run the development server:
+## Tecnologias Utilizadas
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+- **Next.js**: Framework React para desenvolvimento web
+- **TypeScript**: Superset tipado de JavaScript
+- **Tailwind CSS**: Framework CSS utilitário
+- **Shadcn UI**: Componentes de UI reutilizáveis
+- **ESLint**: Linter para JavaScript/TypeScript
+- **Prettier**: Formatador de código
+
+## Estrutura do Projeto
+
+```
+vistoria-tecnico/
+├── src/
+│   ├── app/
+│   │   ├── globals.css
+│   │   ├── layout.tsx
+│   │   └── page.tsx
+│   ├── components/
+│   │   └── ui/
+│   │       ├── button.tsx
+│   │       └── card.tsx
+│   └── lib/
+│       └── utils.ts
+├── public/
+├── .eslintrc.json
+├── .prettierrc
+├── components.json
+├── next.config.js
+├── package.json
+├── postcss.config.js
+├── tailwind.config.js
+└── tsconfig.json
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Comandos Disponíveis
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- **Desenvolvimento**: `npm run dev`
+- **Build**: `npm run build`
+- **Iniciar**: `npm start`
+- **Lint**: `npm run lint`
+- **Formatar código**: `npm run format`
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Tema ABPAC
 
-## Learn More
+O tema foi personalizado com as cores da ABPAC:
+- **Vermelho ABPAC**: #E30613
+- **Preto ABPAC**: #000000
 
-To learn more about Next.js, take a look at the following resources:
+## Solução de Problemas Comuns
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### Erro de módulo não encontrado
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Se você encontrar erros como "Cannot find module 'autoprefixer'" ou similar, instale as dependências necessárias:
 
-## Deploy on Vercel
+```bash
+npm install --save-dev autoprefixer postcss
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### Erro com o Tailwind CSS
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Se você encontrar erros relacionados ao Tailwind CSS, certifique-se de estar usando a versão correta:
+
+```bash
+npm uninstall tailwindcss @tailwindcss/postcss
+npm install --save-dev tailwindcss@3.3.0 postcss autoprefixer
+```
+
+### Configuração do PostCSS
+
+Certifique-se de que o arquivo `postcss.config.js` está configurado corretamente:
+
+```javascript
+module.exports = {
+  plugins: {
+    tailwindcss: {},
+    autoprefixer: {},
+  },
+};
+```
