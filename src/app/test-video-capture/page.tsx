@@ -68,13 +68,60 @@ export default function TestVideoCaptureePage() {
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-6xl mx-auto space-y-6">
         {/* Header */}
-        <div className="text-center">
+        <div className="text-center mb-6">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
             Teste de Captura de Vídeo - ABPAC
           </h1>
           <p className="text-gray-600">
-            Demonstração do componente MediaCapture com suporte a fotos e vídeos
+            Demonstração do componente MediaCapture com suporte a fotos e vídeos (versão com melhorias de detecção)
           </p>
+          
+          {/* Informações de Diagnóstico */}
+          <Card className="mt-4 mx-auto max-w-4xl">
+            <CardHeader>
+              <CardTitle className="text-lg">🔍 Diagnóstico do Dispositivo</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                <div className="space-y-2">
+                  <div><strong>📱 User Agent:</strong></div>
+                  <div className="text-xs bg-gray-100 p-2 rounded font-mono break-all">
+                    {typeof window !== 'undefined' ? window.navigator.userAgent : 'N/A'}
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <strong>🌐 Protocolo:</strong> 
+                      <Badge variant={typeof window !== 'undefined' && window.location.protocol === 'https:' ? 'default' : 'destructive'}>
+                        {typeof window !== 'undefined' ? window.location.protocol : 'N/A'}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <strong>📷 MediaDevices:</strong>
+                      <Badge variant={typeof window !== 'undefined' && window.navigator.mediaDevices ? 'default' : 'destructive'}>
+                        {typeof window !== 'undefined' && window.navigator.mediaDevices ? '✅ Disponível' : '❌ Não disponível'}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <strong>🎥 getUserMedia:</strong>
+                      <Badge variant={typeof window !== 'undefined' && window.navigator.mediaDevices?.getUserMedia ? 'default' : 'destructive'}>
+                        {typeof window !== 'undefined' && window.navigator.mediaDevices?.getUserMedia ? '✅ Disponível' : '❌ Não disponível'}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <strong>📱 Dispositivo:</strong>
+                      <Badge variant="outline">
+                        {typeof window !== 'undefined' ? 
+                          (/iPad|iPhone|iPod/.test(window.navigator.userAgent) ? 'iOS' : 
+                           /Android/i.test(window.navigator.userAgent) ? 'Android' : 'Desktop') : 'N/A'}
+                      </Badge>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
         <div className="grid lg:grid-cols-2 gap-6">

@@ -19,7 +19,9 @@ import {
   Square,
   Play,
   Pause,
-  VolumeX
+  VolumeX,
+  Smartphone,
+  Monitor
 } from 'lucide-react';
 
 export interface MediaFile {
@@ -74,7 +76,16 @@ export function MediaCapture({
   const [fotos, setFotos] = useState<MediaFile[]>([]);
   const [isCapturing, setIsCapturing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [cameraSupported, setCameraSupported] = useState(true);
+  
+  // Estados melhorados para suporte à câmera
+  const [cameraSupported, setCameraSupported] = useState<boolean | null>(null); // null = verificando
+  const [isRequestingCamera, setIsRequestingCamera] = useState(false);
+  const [deviceInfo, setDeviceInfo] = useState<{
+    isIOS: boolean;
+    isMobile: boolean;
+    isSecure: boolean;
+    userAgent: string;
+  } | null>(null);
   
   // Estados para vídeo
   const [isRecording, setIsRecording] = useState(false);
@@ -84,10 +95,93 @@ export function MediaCapture({
   const [recordingTimerRef, setRecordingTimerRef] = useState<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    // Verificar suporte à câmera
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      setCameraSupported(false);
-    }
+    // Detectar informações do dispositivo
+    const detectDevice = () => {
+      const userAgent = navigator.userAgent;
+      const isIOS = /iPad|iPhone|iPod/.test(userAgent) && !(window as any).MSStream;
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent);
+      const isSecure = location.protocol === 'https:' || location.hostname === 'localhost';
+      
+      setDeviceInfo({
+        isIOS,
+        isMobile,
+        isSecure,
+        userAgent
+      });
+
+      console.log('🔍 Informações do dispositivo:', {
+        isIOS,
+        isMobile,
+        isSecure,
+        userAgent: userAgent.substring(0, 100) + '...'
+      });
+    };
+
+    detectDevice();
+
+    // Detectar suporte à câmera de forma mais robusta
+    const checkCameraSupport = async () => {
+      try {
+        console.log('🔍 Verificando suporte à câmera...');
+        
+        // Verificações básicas
+        if (!navigator.mediaDevices) {
+          console.log('❌ navigator.mediaDevices não disponível');
+          setCameraSupported(false);
+          return;
+        }
+
+        if (!navigator.mediaDevices.getUserMedia) {
+          console.log('❌ getUserMedia não disponível');
+          setCameraSupported(false);
+          return;
+        }
+
+        // Verificar se está em contexto seguro (HTTPS)
+        if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
+          console.log('❌ Contexto não seguro (requer HTTPS)');
+          setCameraSupported(false);
+          setError('Acesso à câmera requer conexão segura (HTTPS)');
+          return;
+        }
+
+        // Tentar enumerar dispositivos para verificar se há câmeras
+        if (navigator.mediaDevices.enumerateDevices) {
+          const devices = await navigator.mediaDevices.enumerateDevices();
+          const hasCamera = devices.some(device => device.kind === 'videoinput');
+          
+          if (!hasCamera) {
+            console.log('❌ Nenhuma câmera detectada');
+            setCameraSupported(false);
+            setError('Nenhuma câmera foi detectada no dispositivo');
+            return;
+          }
+          
+          console.log('✅ Câmeras detectadas:', devices.filter(d => d.kind === 'videoinput').length);
+        }
+
+                 // Verificações específicas para iOS
+         const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+         if (isIOS) {
+           console.log('📱 Dispositivo iOS detectado');
+           
+           // No iOS, o suporte pode ser limitado em PWAs
+           if ((window.navigator as any).standalone) {
+             console.log('📱 Rodando como PWA no iOS');
+           }
+         }
+
+        setCameraSupported(true);
+        console.log('✅ Suporte à câmera confirmado');
+
+      } catch (err) {
+        console.error('❌ Erro ao verificar suporte à câmera:', err);
+        setCameraSupported(false);
+        setError('Erro ao verificar suporte à câmera');
+      }
+    };
+
+    checkCameraSupport();
 
     return () => {
       stopCamera();
@@ -110,46 +204,134 @@ export function MediaCapture({
   const startCamera = async () => {
     try {
       setError(null);
+      setIsRequestingCamera(true);
       
-      const mediaStream = await navigator.mediaDevices.getUserMedia({
+      console.log('📷 Iniciando câmera...');
+      console.log('📷 Dispositivo:', deviceInfo);
+
+      // Configurações otimizadas por dispositivo
+      const constraints: MediaStreamConstraints = {
         video: {
           facingMode: 'environment', // Preferir câmera traseira
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
+          width: { ideal: 1280, max: 1920 },
+          height: { ideal: 720, max: 1080 }
         },
         audio: permitirVideo // Incluir áudio apenas se permitir vídeo
+      };
+
+             // Ajustes específicos para iOS
+       if (deviceInfo?.isIOS) {
+         console.log('📱 Aplicando configurações específicas para iOS');
+         constraints.video = {
+           ...(constraints.video as MediaTrackConstraints),
+           // iOS funciona melhor com configurações mais simples
+           width: { ideal: 1280 },
+           height: { ideal: 720 }
+         };
+       }
+
+      console.log('📷 Constraints:', constraints);
+
+      const mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+      
+      console.log('✅ Stream obtido:', {
+        active: mediaStream.active,
+        tracks: mediaStream.getTracks().length,
+        videoTracks: mediaStream.getVideoTracks().length,
+        audioTracks: mediaStream.getAudioTracks().length
+      });
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = mediaStream;
+        
+        // Aguardar o vídeo carregar
+        const onLoadedMetadata = () => {
+          console.log('✅ Vídeo carregado:', {
+            videoWidth: videoRef.current?.videoWidth,
+            videoHeight: videoRef.current?.videoHeight,
+            readyState: videoRef.current?.readyState
+          });
+          
+          setStream(mediaStream);
+          setIsCameraActive(true);
+          setIsRequestingCamera(false);
+        };
+
+        videoRef.current.addEventListener('loadedmetadata', onLoadedMetadata, { once: true });
+        
+        // Timeout de segurança
+        setTimeout(() => {
+          if (isRequestingCamera) {
+            console.log('⏰ Timeout na inicialização da câmera');
+            setIsRequestingCamera(false);
+            if (mediaStream.active) {
+              setStream(mediaStream);
+              setIsCameraActive(true);
+            }
+          }
+        }, 5000);
+      }
+
+    } catch (err) {
+      console.error('❌ Erro ao acessar câmera:', err);
+      setIsRequestingCamera(false);
+      
+      let errorMessage = 'Erro ao acessar câmera';
+      
+      if (err instanceof Error) {
+        console.log('❌ Tipo de erro:', err.name, err.message);
+        
+        switch (err.name) {
+          case 'NotAllowedError':
+            errorMessage = permitirVideo 
+              ? '🚫 Acesso à câmera e microfone negado. Clique no ícone da câmera na barra de endereços e permita o acesso.'
+              : '🚫 Acesso à câmera negado. Clique no ícone da câmera na barra de endereços e permita o acesso.';
+            break;
+          case 'NotFoundError':
+            errorMessage = '📷 Nenhuma câmera foi encontrada no dispositivo.';
+            break;
+          case 'NotSupportedError':
+            errorMessage = '🚫 Câmera não suportada pelo navegador.';
+            break;
+          case 'NotReadableError':
+            errorMessage = '⚠️ Câmera em uso por outro aplicativo. Feche outros apps que possam estar usando a câmera.';
+            break;
+          case 'OverconstrainedError':
+            errorMessage = '⚙️ Configurações de câmera não suportadas. Tentando configuração mais simples...';
+            // Tentar novamente com configurações mais simples
+            setTimeout(() => {
+              trySimpleCamera();
+            }, 1000);
+            break;
+          default:
+            errorMessage = `❌ Erro: ${err.message}. Verifique as permissões e tente novamente.`;
+        }
+      }
+      
+      setError(errorMessage);
+      setIsCameraActive(false);
+    }
+  };
+
+  // Função auxiliar para tentar câmera com configurações simples
+  const trySimpleCamera = async () => {
+    try {
+      console.log('🔄 Tentando configuração simples de câmera...');
+      
+      const mediaStream = await navigator.mediaDevices.getUserMedia({
+        video: true,
+        audio: false
       });
 
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
         setStream(mediaStream);
         setIsCameraActive(true);
+        setError(null);
+        console.log('✅ Câmera simples funcionou!');
       }
     } catch (err) {
-      console.error('Erro ao acessar câmera:', err);
-      
-      let errorMessage = 'Erro ao acessar câmera';
-      
-      if (err instanceof Error) {
-        switch (err.name) {
-          case 'NotAllowedError':
-            errorMessage = permitirVideo 
-              ? 'Acesso à câmera e microfone negado. Permita o acesso para gravar vídeos.'
-              : 'Acesso à câmera negado. Permita o acesso para tirar fotos.';
-            break;
-          case 'NotFoundError':
-            errorMessage = 'Câmera não encontrada no dispositivo.';
-            break;
-          case 'NotSupportedError':
-            errorMessage = 'Câmera não suportada pelo navegador.';
-            break;
-          default:
-            errorMessage = 'Erro ao acessar câmera. Verifique as permissões.';
-        }
-      }
-      
-      setError(errorMessage);
-      setIsCameraActive(false);
+      console.error('❌ Configuração simples também falhou:', err);
     }
   };
 
@@ -161,7 +343,11 @@ export function MediaCapture({
 
     // Parar stream da câmera
     if (stream) {
-      stream.getTracks().forEach(track => track.stop());
+      console.log('🛑 Parando câmera...');
+      stream.getTracks().forEach(track => {
+        track.stop();
+        console.log('🛑 Track parado:', track.kind, track.label);
+      });
       setStream(null);
       setIsCameraActive(false);
     }
@@ -171,6 +357,8 @@ export function MediaCapture({
       clearInterval(recordingTimerRef);
       setRecordingTimerRef(null);
     }
+
+    setIsRequestingCamera(false);
   };
 
   const capturePhoto = async () => {
@@ -227,12 +415,15 @@ export function MediaCapture({
 
       const novasFotos = [...fotos, novaFoto];
       setFotos(novasFotos);
-      onCapture(novasFotos);
+      
+      // Combinar toda mídia
+      const todaMedia = [...novasFotos, ...videos];
+      onCapture(todaMedia);
 
-      // Não parar câmera automaticamente - usuário decide quando parar
+      console.log('📸 Foto capturada:', novaFoto.id, `${Math.round(blob.size / 1024)}KB`);
 
     } catch (err) {
-      console.error('Erro ao capturar foto:', err);
+      console.error('❌ Erro ao capturar foto:', err);
       setError('Erro ao capturar foto. Tente novamente.');
     } finally {
       setIsCapturing(false);
@@ -294,7 +485,7 @@ export function MediaCapture({
       setRecordingTimerRef(timer);
 
     } catch (err) {
-      console.error('Erro ao iniciar gravação:', err);
+      console.error('❌ Erro ao iniciar gravação:', err);
       setError(err instanceof Error ? err.message : 'Erro ao iniciar gravação de vídeo');
       setIsRecording(false);
     }
@@ -320,7 +511,7 @@ export function MediaCapture({
       }, 100);
 
     } catch (err) {
-      console.error('Erro ao parar gravação:', err);
+      console.error('❌ Erro ao parar gravação:', err);
       setError('Erro ao finalizar gravação de vídeo');
       setIsRecording(false);
     }
@@ -370,7 +561,7 @@ export function MediaCapture({
       console.log('✅ Vídeo processado e salvo:', novoVideo.id);
 
     } catch (err) {
-      console.error('Erro ao processar vídeo:', err);
+      console.error('❌ Erro ao processar vídeo:', err);
       setError('Erro ao processar vídeo gravado');
     }
   };
@@ -474,7 +665,7 @@ export function MediaCapture({
             };
 
             mediaRecorder.onerror = (event) => {
-              console.error('Erro na compressão:', event);
+              console.error('❌ Erro na compressão:', event);
               resolve(videoBlob); // Usar original em caso de erro
             };
 
@@ -498,13 +689,13 @@ export function MediaCapture({
             drawFrame();
 
           } catch (error) {
-            console.error('Erro durante compressão:', error);
+            console.error('❌ Erro durante compressão:', error);
             resolve(videoBlob); // Usar original em caso de erro
           }
         };
 
         video.onerror = () => {
-          console.error('Erro ao carregar vídeo para compressão');
+          console.error('❌ Erro ao carregar vídeo para compressão');
           resolve(videoBlob); // Usar original em caso de erro
         };
 
@@ -512,7 +703,7 @@ export function MediaCapture({
         video.muted = true;
 
       } catch (error) {
-        console.error('Erro na configuração de compressão:', error);
+        console.error('❌ Erro na configuração de compressão:', error);
         resolve(videoBlob); // Usar original em caso de erro
       }
     });
@@ -594,7 +785,10 @@ export function MediaCapture({
   const removePhoto = (fotoId: string) => {
     const novasFotos = fotos.filter(foto => foto.id !== fotoId);
     setFotos(novasFotos);
-    onCapture(novasFotos);
+    
+    // Combinar toda mídia
+    const todaMedia = [...novasFotos, ...videos];
+    onCapture(todaMedia);
   };
 
   const downloadPhoto = (foto: MediaFile) => {
@@ -656,13 +850,54 @@ export function MediaCapture({
         </div>
       </div>
 
+      {/* Informações de diagnóstico (apenas durante desenvolvimento) */}
+      {deviceInfo && (process.env.NODE_ENV === 'development') && (
+        <Card className="border-blue-200 bg-blue-50">
+          <CardContent className="p-3">
+            <div className="text-xs space-y-1">
+              <div className="flex items-center gap-2">
+                {deviceInfo.isMobile ? <Smartphone className="w-3 h-3" /> : <Monitor className="w-3 h-3" />}
+                <span className="font-medium">
+                  {deviceInfo.isIOS ? 'iOS' : 'Desktop'} 
+                  {deviceInfo.isMobile ? ' Mobile' : ''}
+                </span>
+                <Badge variant={deviceInfo.isSecure ? 'default' : 'destructive'} className="text-xs py-0">
+                  {deviceInfo.isSecure ? 'HTTPS' : 'HTTP'}
+                </Badge>
+                <Badge variant={cameraSupported ? 'default' : 'destructive'} className="text-xs py-0">
+                  Câmera: {cameraSupported === null ? 'Verificando...' : cameraSupported ? 'OK' : 'Não suportada'}
+                </Badge>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Erro */}
       {error && (
         <Card className="border-red-200 bg-red-50">
           <CardContent className="p-4">
-            <div className="flex items-center gap-2 text-red-700">
-              <AlertTriangle className="w-4 h-4" />
-              <span className="text-sm">{error}</span>
+            <div className="flex items-start gap-2 text-red-700">
+              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />  
+              <div className="text-sm">
+                <div className="font-medium mb-1">Problema com a câmera</div>
+                <div>{error}</div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Estado de carregamento da câmera */}
+      {isRequestingCamera && (
+        <Card className="border-blue-200 bg-blue-50">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 text-blue-700">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span className="text-sm">
+                Solicitando acesso à câmera... 
+                {deviceInfo?.isIOS && ' (Toque em "Permitir" se aparecer uma solicitação)'}
+              </span>
             </div>
           </CardContent>
         </Card>
@@ -743,9 +978,10 @@ export function MediaCapture({
       )}
 
       {/* Controles */}
-      {!isCameraActive && (
+      {!isCameraActive && !isRequestingCamera && (
         <div className="flex gap-2">
-          {cameraSupported && (
+          {/* Mostrar botão de câmera apenas se houver suporte confirmado */}
+          {cameraSupported === true && (
             <Button
               onClick={startCamera}
               disabled={fotos.length >= maxFotos && (!permitirVideo || videos.length >= maxVideos)}
@@ -756,6 +992,7 @@ export function MediaCapture({
             </Button>
           )}
           
+          {/* Botão de upload sempre disponível */}
           <Button
             onClick={() => fileInputRef.current?.click()}
             variant="outline"
@@ -766,6 +1003,21 @@ export function MediaCapture({
             Upload {permitirVideo ? 'Mídia' : 'Fotos'}
           </Button>
         </div>
+      )}
+
+      {/* Aviso se câmera não for suportada */}
+      {cameraSupported === false && (
+        <Card className="border-yellow-200 bg-yellow-50">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 text-yellow-700">
+              <AlertTriangle className="w-4 h-4" />
+              <div className="text-sm">
+                <div className="font-medium">Câmera não disponível</div>
+                <div>Use o botão "Upload" para selecionar fotos{permitirVideo ? ' e vídeos' : ''} da galeria.</div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* Input de arquivo (oculto) */}
