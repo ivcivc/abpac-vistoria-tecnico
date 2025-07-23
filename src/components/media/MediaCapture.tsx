@@ -69,11 +69,9 @@ export function MediaCapture({
   }, []);
 
   useEffect(() => {
-    // Só atualizar se realmente houver diferença para evitar loops
-    if (JSON.stringify(fotos) !== JSON.stringify(fotosExistentes)) {
-      setFotos(fotosExistentes);
-    }
-  }, [fotosExistentes, fotos]);
+    // Inicializar fotos apenas quando fotosExistentes mudar de fora
+    setFotos(fotosExistentes);
+  }, [fotosExistentes]);
 
   const startCamera = async () => {
     try {

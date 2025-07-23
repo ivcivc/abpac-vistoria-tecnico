@@ -48,8 +48,6 @@ export function VistoriaDetails({ vistoriaId }: VistoriaDetailsProps) {
   const [saving, setSaving] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
 
-  const localVistoriaService = useMemo(() => new LocalVistoriaService(), []);
-
   // Carregar dados da vistoria
   const carregarVistoria = useCallback(async () => {
     try {
@@ -57,6 +55,8 @@ export function VistoriaDetails({ vistoriaId }: VistoriaDetailsProps) {
       setError(null);
 
       console.log('🔍 [VISTORIA-DETAILS] Tentando carregar vistoria com ID:', vistoriaId);
+      
+      const localVistoriaService = new LocalVistoriaService();
       
       // DEBUG: Listar todas as vistorias no armazenamento local
       const todasVistorias = await localVistoriaService.obterVistoriasLocais();
@@ -85,7 +85,7 @@ export function VistoriaDetails({ vistoriaId }: VistoriaDetailsProps) {
     } finally {
       setLoading(false);
     }
-  }, [vistoriaId, localVistoriaService]);
+  }, [vistoriaId]);
 
   // Carregar na inicialização
   useEffect(() => {
@@ -101,6 +101,7 @@ export function VistoriaDetails({ vistoriaId }: VistoriaDetailsProps) {
     try {
       setSaving(true);
       
+      const localVistoriaService = new LocalVistoriaService();
       const result = await localVistoriaService.atualizarStatusVistoria(vistoria.id, novoStatus);
       
       if (result.success) {
