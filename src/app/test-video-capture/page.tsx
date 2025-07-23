@@ -31,8 +31,19 @@ export default function TestVideoCaptureePage() {
   useEffect(() => {
     const detectBrowserInfo = () => {
       const userAgent = navigator.userAgent;
-      const deviceType = /iPad|iPhone|iPod/.test(userAgent) ? 'iOS' : 
-                        /Android/i.test(userAgent) ? 'Android' : 'Desktop';
+      const isIOS = /iPad|iPhone|iPod/.test(userAgent) && !(window as any).chrome;
+      const isAndroid = /Android/i.test(userAgent);
+      const isMac = /Mac/.test(userAgent);
+      const isChrome = /Chrome/.test(userAgent) && !(window as any).opr && !(window as any).edgA;
+      
+      let deviceType = 'Desktop';
+      if (isIOS) {
+        deviceType = 'iOS';
+      } else if (isAndroid) {
+        deviceType = 'Android';
+      } else if (isMac) {
+        deviceType = isChrome ? 'Mac (Chrome)' : 'Mac (Safari)';
+      }
       
       setBrowserInfo({
         userAgent,

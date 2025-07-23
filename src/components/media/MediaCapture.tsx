@@ -145,22 +145,27 @@ export function MediaCapture({
           return;
         }
 
-        // Verificações específicas para iOS - mais restritivas
-        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-        if (isIOS) {
-          console.log('📱 Dispositivo iOS detectado');
-          
-          // No iOS Safari, a câmera tem limitações
-          if ((window.navigator as any).standalone) {
-            console.log('📱 Rodando como PWA no iOS - câmera limitada');
-          }
-          
-          // iOS Safari tem restrições, especialmente em PWAs
-          // Permitir apenas upload para iOS por segurança
-          console.log('📱 iOS detectado - usando apenas upload');
-          setCameraSupported(false);
-          return;
-        }
+                 // Verificações específicas para iOS - mais restritivas
+         const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).chrome;
+         const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+         
+         if (isIOS || (isSafari && /Mac/.test(navigator.userAgent))) {
+           console.log('📱 Dispositivo iOS/Safari detectado');
+           
+           // No iOS Safari ou Safari no Mac, a câmera tem limitações
+           if ((window.navigator as any).standalone) {
+             console.log('📱 Rodando como PWA - câmera limitada');
+           }
+           
+           // Apenas Safari tem restrições severas, Chrome no Mac deve funcionar
+           if (isSafari) {
+             console.log('📱 Safari detectado - usando apenas upload');
+             setCameraSupported(false);
+             return;
+           }
+         }
+         
+         console.log('🖥️ Dispositivo não-iOS ou Chrome detectado - testando câmera');
 
         // Para outros dispositivos, tentar enumerar dispositivos
         let hasCamera = false;
@@ -301,44 +306,77 @@ export function MediaCapture({
           checkAndActivateCamera();
         };
 
-        const checkAndActivateCamera = () => {
-          if (!isCameraActive && mediaStream.active) {
-            console.log('✅ Ativando câmera...');
-            setStream(mediaStream);
-            setIsCameraActive(true);
-            setIsRequestingCamera(false);
-          }
-        };
+                 const checkAndActivateCamera = () => {
+           if (!isCameraActive && mediaStream.active) {
+             console.log('✅ Ativando câmera...');
+             setStream(mediaStream);
+             setIsCameraActive(true);
+             setIsRequestingCamera(false);
+           }
+         };
 
-        // Adicionar múltiplos listeners para garantir compatibilidade
-        videoElement.addEventListener('loadedmetadata', onLoadedMetadata, { once: true });
-        videoElement.addEventListener('canplay', onCanPlay, { once: true });
-        videoElement.addEventListener('loadeddata', onLoadedData, { once: true });
-        
-        // Forçar play para alguns navegadores
-        videoElement.play().catch(err => {
-          console.log('⚠️ Erro ao fazer play automático (normal):', err.message);
-        });
-        
-        // Timeout de segurança mais agressivo
-        setTimeout(() => {
-          if (isRequestingCamera && mediaStream.active) {
-            console.log('⏰ Timeout - forçando ativação da câmera');
-            setStream(mediaStream);
-            setIsCameraActive(true);
-            setIsRequestingCamera(false);
-          }
-        }, 3000);
+         // Adicionar múltiplos listeners para garantir compatibilidade
+         videoElement.addEventListener('loadedmetadata', onLoadedMetadata, { once: true });
+         videoElement.addEventListener('canplay', onCanPlay, { once: true });
+         videoElement.addEventListener('loadeddata', onLoadedData, { once: true });
+         
+         // Forçar play para alguns navegadores
+         videoElement.play().catch(err => {
+           console.log('⚠️ Erro ao fazer play automático (normal):', err.message);
+         });
+         
+         // NOVA ESTRATÉGIA: Verificação direta de dimensões do vídeo
+         const checkVideoDimensions = () => {
+           console.log('🔍 Verificando dimensões do vídeo:', {
+             videoWidth: videoElement.videoWidth,
+             videoHeight: videoElement.videoHeight,
+             readyState: videoElement.readyState,
+             networkState: videoElement.networkState
+           });
+           
+           // Se o vídeo tem dimensões válidas, ativar
+           if (videoElement.videoWidth > 0 && videoElement.videoHeight > 0) {
+             console.log('✅ Dimensões válidas detectadas - ativando câmera');
+             checkAndActivateCamera();
+             return true;
+           }
+           return false;
+         };
 
-        // Segundo timeout como fallback
-        setTimeout(() => {
-          if (!isCameraActive && mediaStream.active && videoElement.readyState >= 1) {
-            console.log('⏰ Segundo timeout - stream ativo, forçando ativação');
-            setStream(mediaStream);
-            setIsCameraActive(true);
-            setIsRequestingCamera(false);
-          }
-        }, 1000);
+         // Verificar dimensões periodicamente
+         const dimensionInterval = setInterval(() => {
+           if (checkVideoDimensions()) {
+             clearInterval(dimensionInterval);
+           }
+         }, 100);
+
+         // Limpar interval após 5 segundos
+         setTimeout(() => {
+           clearInterval(dimensionInterval);
+         }, 5000);
+         
+         // Timeout de segurança mais agressivo
+         setTimeout(() => {
+           if (isRequestingCamera && mediaStream.active) {
+             console.log('⏰ Timeout 1s - forçando ativação da câmera');
+             checkVideoDimensions();
+             if (!isCameraActive) {
+               setStream(mediaStream);
+               setIsCameraActive(true);
+               setIsRequestingCamera(false);
+             }
+           }
+         }, 1000);
+
+         // Segundo timeout como fallback
+         setTimeout(() => {
+           if (isRequestingCamera && mediaStream.active) {
+             console.log('⏰ Timeout 2s - forçando ativação final');
+             setStream(mediaStream);
+             setIsCameraActive(true);
+             setIsRequestingCamera(false);
+           }
+         }, 2000);
       }
 
     } catch (err) {
@@ -393,11 +431,25 @@ export function MediaCapture({
       });
 
       if (videoRef.current) {
-        videoRef.current.srcObject = mediaStream;
-        setStream(mediaStream);
-        setIsCameraActive(true);
-        setError(null);
-        console.log('✅ Câmera simples funcionou!');
+        const videoElement = videoRef.current;
+        videoElement.srcObject = mediaStream;
+        
+        // Aguardar um pouco para o vídeo carregar
+        setTimeout(() => {
+          console.log('🔄 Verificando se câmera simples carregou:', {
+            videoWidth: videoElement.videoWidth,
+            videoHeight: videoElement.videoHeight,
+            readyState: videoElement.readyState
+          });
+          
+          if (videoElement.videoWidth > 0 || videoElement.readyState >= 1) {
+            setStream(mediaStream);
+            setIsCameraActive(true);
+            setError(null);
+            setIsRequestingCamera(false);
+            console.log('✅ Câmera simples funcionou!');
+          }
+        }, 500);
       }
     } catch (err) {
       console.error('❌ Configuração simples também falhou:', err);
