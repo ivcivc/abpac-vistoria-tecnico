@@ -442,7 +442,7 @@ export function ItemDetail({ item, readOnly, onUpdate }: ItemDetailProps) {
                 // TODO: Salvar no armazenamento local
               }}
               tipoEvidencia="numero_serie"
-              maxFotos={3}
+              minFotos={1}
               descricao="Foto clara do número de série do equipamento"
               disabled={readOnly}
             />
@@ -463,7 +463,7 @@ export function ItemDetail({ item, readOnly, onUpdate }: ItemDetailProps) {
                 // TODO: Salvar no armazenamento local
               }}
               tipoEvidencia="local_instalacao"
-              maxFotos={3}
+              minFotos={1}
               descricao="Foto do local onde o equipamento foi instalado/escondido"
               disabled={readOnly}
             />
@@ -484,7 +484,7 @@ export function ItemDetail({ item, readOnly, onUpdate }: ItemDetailProps) {
                 // TODO: Salvar no armazenamento local
               }}
               tipoEvidencia="outro"
-              maxFotos={2}
+              minFotos={0}
               descricao="Fotos adicionais relevantes para a vistoria"
               disabled={readOnly}
             />

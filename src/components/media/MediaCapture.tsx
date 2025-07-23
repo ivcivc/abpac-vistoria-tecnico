@@ -33,6 +33,7 @@ interface MediaCaptureProps {
   onCapture: (media: MediaFile[]) => void;
   tipoEvidencia: 'numero_serie' | 'local_instalacao' | 'outro';
   maxFotos?: number;
+  minFotos?: number;
   descricao?: string;
   fotosExistentes?: MediaFile[];
   disabled?: boolean;
@@ -41,7 +42,8 @@ interface MediaCaptureProps {
 export function MediaCapture({
   onCapture,
   tipoEvidencia,
-  maxFotos = 5,
+  maxFotos = 999, // Sem limite prático
+  minFotos = 0,
   descricao = '',
   fotosExistentes = [],
   disabled = false
@@ -181,10 +183,7 @@ export function MediaCapture({
       setFotos(novasFotos);
       onCapture(novasFotos);
 
-      // Parar câmera se atingiu limite
-      if (novasFotos.length >= maxFotos) {
-        stopCamera();
-      }
+      // Não parar câmera automaticamente - usuário decide quando parar
 
     } catch (err) {
       console.error('Erro ao capturar foto:', err);
@@ -199,7 +198,7 @@ export function MediaCapture({
     if (!files) return;
 
     Array.from(files).forEach((file) => {
-      if (fotos.length >= maxFotos) return;
+      // Remover limite de fotos - permitir quantas o usuário quiser
 
       // Validar tipo de arquivo
       if (!file.type.startsWith('image/')) {
@@ -289,8 +288,8 @@ export function MediaCapture({
             {getTipoEvidenciaLabel(tipoEvidencia)}
           </Badge>
         </div>
-        <Badge variant="outline">
-          {fotos.length}/{maxFotos} fotos
+        <Badge variant="outline" className={fotos.length < minFotos ? 'border-red-500 text-red-600' : ''}>
+          {fotos.length} fotos {minFotos > 0 && `(mín: ${minFotos})`}
         </Badge>
       </div>
 
@@ -322,7 +321,7 @@ export function MediaCapture({
               <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex gap-2">
                 <Button
                   onClick={capturePhoto}
-                  disabled={isCapturing || fotos.length >= maxFotos}
+                  disabled={isCapturing}
                   className="bg-white text-black hover:bg-gray-100"
                 >
                   {isCapturing ? (
@@ -362,7 +361,7 @@ export function MediaCapture({
           <Button
             onClick={() => fileInputRef.current?.click()}
             variant="outline"
-            disabled={fotos.length >= maxFotos}
+            disabled={false}
             className="flex-1"
           >
             <Download className="w-4 h-4 mr-2" />
@@ -439,13 +438,32 @@ export function MediaCapture({
 
       {/* Status */}
       {fotos.length > 0 && (
-        <Card className="border-green-200 bg-green-50">
+        <Card className={fotos.length >= minFotos ? "border-green-200 bg-green-50" : "border-yellow-200 bg-yellow-50"}>
           <CardContent className="p-4">
-            <div className="flex items-center gap-2 text-green-700">
-              <CheckCircle className="w-4 h-4" />
+            <div className={`flex items-center gap-2 ${fotos.length >= minFotos ? 'text-green-700' : 'text-yellow-700'}`}>
+              {fotos.length >= minFotos ? (
+                <CheckCircle className="w-4 h-4" />
+              ) : (
+                <AlertTriangle className="w-4 h-4" />
+              )}
               <span className="text-sm">
-                {fotos.length} {fotos.length === 1 ? 'foto capturada' : 'fotos capturadas'} 
-                {fotos.length >= maxFotos && ' (limite atingido)'}
+                {fotos.length} {fotos.length === 1 ? 'foto capturada' : 'fotos capturadas'}
+                {minFotos > 0 && fotos.length < minFotos && ` (faltam ${minFotos - fotos.length})`}
+                {minFotos > 0 && fotos.length >= minFotos && ' (mínimo atingido)'}
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Aviso se não há fotos e é obrigatório */}
+      {fotos.length === 0 && minFotos > 0 && (
+        <Card className="border-red-200 bg-red-50">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 text-red-700">
+              <AlertTriangle className="w-4 h-4" />
+              <span className="text-sm font-medium">
+                Mínimo de {minFotos} {minFotos === 1 ? 'foto obrigatória' : 'fotos obrigatórias'}
               </span>
             </div>
           </CardContent>
