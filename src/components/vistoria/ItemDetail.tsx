@@ -199,8 +199,13 @@ export function ItemDetail({ item, readOnly, onUpdate }: ItemDetailProps) {
               </p>
             </div>
             <div>
-              <Label>Tipo de Equipamento</Label>
-              <p className="text-sm font-medium">{itemData.tipo || 'Equipamento de Segurança'}</p>
+              <Label>Equipamento</Label>
+              <p className="text-sm font-medium">
+                {typeof editedItem.categoria === 'object' 
+                  ? (editedItem.categoria as any)?.descricao || (editedItem.categoria as any)?.nome || 'LOCALIZADOR'
+                  : editedItem.categoria || 'LOCALIZADOR'
+                }
+              </p>
             </div>
           </div>
         </CardContent>
