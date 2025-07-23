@@ -1,5 +1,5 @@
 import { CRUDService } from '@/services/storage/CRUDService';
-import { STORES, StorageQuery } from '@/types/storage';
+import { STORES, StorageQuery, VistoriaItem } from '@/types/storage';
 
 export interface VistoriaLocal {
   id: string;
@@ -16,6 +16,9 @@ export interface VistoriaLocal {
     cor: string;
     ano: number;
   };
+  equipamento?: any; // Objeto completo do equipamento do backend
+  nomeEquipamento?: string; // Nome do equipamento para exibição
+  itens?: any[]; // Lista de itens da vistoria
 }
 
 interface ServiceResult<T = any> {
@@ -58,6 +61,9 @@ export class LocalVistoriaService {
         tecnicoNome,
         status: 'em_andamento',
         veiculo: dadosVistoria.veiculo,
+        equipamento: dadosVistoria.equipamento, // Objeto completo do equipamento
+        nomeEquipamento: dadosVistoria.nomeEquipamento, // Nome para exibição
+        itens: dadosVistoria.itens || [], // Lista de itens
       };
 
       // Verificar se já existe (evitar duplicatas)
@@ -217,6 +223,14 @@ export class LocalVistoriaService {
       }
 
       const vistoria = vistoriaResult.data;
+
+      // Verificar se a vistoria tem itens
+      if (!vistoria.itens || !Array.isArray(vistoria.itens)) {
+        return {
+          success: false,
+          error: 'Vistoria não possui itens válidos',
+        };
+      }
 
       // Encontrar e atualizar o item
       const itemIndex = vistoria.itens.findIndex(item => item.id === itemAtualizado.id);

@@ -109,7 +109,10 @@ function LoginPageContent() {
             dataAgendada:
               serverData.data_prevista || serverData.data_agendada || new Date().toISOString(),
             cliente: serverData.pessoa_nome || serverData.cliente || 'Cliente não informado',
-            equipamento: serverData.equipamento?.nome || 'Equipamento ABPAC',
+            
+            // CORRIGIDO: Manter objeto completo do equipamento + campo separado para nome
+            equipamento: serverData.equipamento || {}, // Objeto completo do equipamento
+            nomeEquipamento: serverData.equipamento?.nome || 'Equipamento ABPAC', // Nome para exibição
 
             // Campos específicos da vistoria (CORRIGIDOS)
             tipoVistoria: serverData.tipo_vistoria || 'Vistoria',
@@ -152,7 +155,8 @@ function LoginPageContent() {
             tipoVistoria: processedData.tipoVistoria,
             tecnicoId: processedData.tecnicoId,
             tecnicoNome: processedData.tecnicoNome,
-            equipamento: processedData.equipamento,
+            equipamento: processedData.equipamento, // Objeto completo
+            nomeEquipamento: processedData.nomeEquipamento, // Nome para exibição
           });
 
           return processedData;
