@@ -1,3 +1,7 @@
+import { ProgressIndicator } from "@/components/vistoria/ProgressIndicator";
+import { StatusBadge } from "@/components/vistoria/StatusBadge";
+import { SyncBadge } from "@/components/vistoria/SyncBadge";
+import { calculateVistoriaProgress, calculateProgressFromStatus, calculateSyncStatus } from "@/utils/progressCalculation";
 'use client';
 
 import { VistoriaLocal } from '@/services/vistoria/LocalVistoriaService';
@@ -30,6 +34,8 @@ interface VistoriaCardProps {
  * Funcionalidades:
  * - Layout visual rico com ícones e cores
  * - Badge de status com cores apropriadas
+ * - Indicador de progresso real baseado nos itens
+ * - Indicador de sincronização
  * - Informações organizadas em seções
  * - Ações rápidas (abrir, alterar status)
  * - Responsivo para diferentes tamanhos
@@ -109,6 +115,26 @@ export function VistoriaCard({
     }
   };
 
+  // MELHORADO: Cálculo real de progresso
+  const progressInfo = calculateProgressFromStatus(vistoria.status);
+  
+  // MELHORADO: Status de sincronização real
+  const syncStatus = calculateSyncStatus(vistoria);
+
+  // Mapear status para o formato aceito pelo StatusBadge
+  const getStatusParaBadge = () => {
+    switch (vistoria.status) {
+      case 'em_andamento':
+        return 'em_andamento' as const;
+      case 'concluida':
+        return 'concluida' as const;
+      case 'pausada':
+        return 'pendente' as const; // Mapear pausada para pendente
+      default:
+        return 'pendente' as const;
+    }
+  };
+
   // Opções de status para mudança rápida
   const statusOptions = [
     { value: 'em_andamento', label: 'Em Andamento', icon: Play },
@@ -134,7 +160,7 @@ export function VistoriaCard({
     >
       <CardContent className="p-6">
         <div className="space-y-4">
-          {/* Header: Local + Status */}
+          {/* Header: Local + Status + Sync */}
           <div className="flex items-start justify-between gap-3">
             <div className="flex-1 min-w-0">
               <div className="flex items-start gap-2 mb-2">
@@ -154,76 +180,69 @@ export function VistoriaCard({
             </div>
 
             <div className="flex items-center gap-2 flex-shrink-0">
-              <span
-                className={`inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium border ${statusConfig.color}`}
-              >
-                <StatusIcon className="h-3.5 w-3.5 mr-1.5" />
-                {statusConfig.label}
-              </span>
+              {/* Badge de Status */}
+              <StatusBadge status={getStatusParaBadge()} />
+              
+              {/* Badge de Sincronização */}
+              <SyncBadge 
+                isSynced={syncStatus.isSynced} 
+                isSyncing={syncStatus.isSyncing}
+                showText={false}
+              />
             </div>
+          </div>
+
+          {/* Indicador de Progresso */}
+          <div className="space-y-2">
+            <ProgressIndicator 
+              value={progressInfo.percentage}
+              label="Progresso da Vistoria"
+              description={progressInfo.description}
+              size="md"
+              variant="detailed"
+              className="bg-muted/30 p-3 rounded-lg"
+            />
           </div>
 
           {/* Informações do veículo */}
-          <div className={`p-3 rounded-lg ${statusConfig.bgAccent}`}>
-            <div className="flex items-center gap-2 mb-2">
-              <Car className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm font-medium">Veículo</span>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-3 bg-muted/30 rounded-lg">
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-sm">
+                <Car className="h-4 w-4 text-muted-foreground" />
+                <span className="font-medium">{vistoria.veiculo.modelo}</span>
+              </div>
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <span>Placa: {vistoria.veiculo.placa}</span>
+              </div>
+              {vistoria.veiculo.cor && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <span>Cor: {vistoria.veiculo.cor}</span>
+                </div>
+              )}
             </div>
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              <div>
-                <span className="text-muted-foreground">Modelo:</span>
-                <p className="font-medium">{vistoria.veiculo.modelo}</p>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Placa:</span>
-                <p className="font-mono font-medium">{vistoria.veiculo.placa}</p>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Cor:</span>
-                <p className="font-medium">{vistoria.veiculo.cor}</p>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Ano:</span>
-                <p className="font-medium">{vistoria.veiculo.ano}</p>
-              </div>
-            </div>
-          </div>
 
-          {/* Datas e técnico */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-sm">
                 <Calendar className="h-4 w-4 text-muted-foreground" />
-                <div>
-                  <p className="text-muted-foreground">Agendada para</p>
-                  <p className="font-medium">{formatarData(vistoria.dataAgendada)}</p>
-                </div>
+                <span>Agendada: {formatarData(vistoria.dataAgendada)}</span>
               </div>
-
-              <div className="flex items-center gap-2">
-                <Clock className="h-4 w-4 text-muted-foreground" />
-                <div>
-                  <p className="text-muted-foreground">Acessada</p>
-                  <p className="font-medium">{formatarDataHora(vistoria.dataAcesso)}</p>
-                  <p className="text-xs text-muted-foreground">{tempoDecorrido()}</p>
-                </div>
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Clock className="h-4 w-4" />
+                <span>Acessada {tempoDecorrido()}</span>
               </div>
-            </div>
-
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <User className="h-4 w-4 text-muted-foreground" />
-                <div>
-                  <p className="text-muted-foreground">Técnico</p>
-                  <p className="font-medium">{vistoria.tecnicoNome}</p>
+              {vistoria.tecnicoNome && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <User className="h-4 w-4" />
+                  <span>{vistoria.tecnicoNome}</span>
                 </div>
-              </div>
+              )}
             </div>
           </div>
 
-          {/* Ações */}
+          {/* Rodapé: Ações e informações */}
           <div className="flex items-center justify-between pt-2 border-t">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
+              {/* Menu de mudança de status */}
               {onUpdateStatus && (
                 <div className="relative group/status">
                   <Button variant="ghost" size="sm" className="h-8 px-2">
@@ -254,9 +273,13 @@ export function VistoriaCard({
                 </div>
               )}
 
-              <span className="text-xs text-muted-foreground">
-                ID: {vistoria.id.substring(0, 8)}...
-              </span>
+              {/* Informações adicionais */}
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <span>ID: {vistoria.id.substring(0, 8)}...</span>
+                {syncStatus.lastSync && (
+                  <span>• Sync: {syncStatus.lastSync.toLocaleDateString('pt-BR')}</span>
+                )}
+              </div>
             </div>
 
             <Button onClick={() => onOpenVistoria(vistoria.id)} size="sm" className="h-8 px-3">

@@ -59,7 +59,7 @@ export class AuthService {
       const response = await fetch(buildApiUrl(`/vistoria/${token}`), {
         method: 'GET',
         headers: {
-          ...API_CONFIG.DEFAULT_HEADERS,
+          'Content-Type': 'application/json',
         },
       });
 
@@ -80,7 +80,7 @@ export class AuthService {
               tecnicoId: vistoria.tecnico_id || null,
               nomeEstoque: vistoria.tecnico?.nome || vistoria.estoque?.nome || null,
               veiculo: {
-                placa: vistoria.equipamento?.placa1 || vistoria.equipamento?.placa || 'N/A',
+                placa: vistoria.equipamento?.placa1 || 'N/A',
                 modelo:
                   `${vistoria.equipamento?.marca1 || ''} ${vistoria.equipamento?.modelo1 || ''}`.trim() ||
                   'Modelo não informado',

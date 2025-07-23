@@ -117,15 +117,16 @@ function LoginPageContent() {
             prioridade: serverData.prioridade || 'MEDIA',
 
             // Mapear equipamento REAL para veiculo (estrutura esperada pelo TechnicianIdentification)
+            // CORRIGIDO: Usar campos corretos do backend (placa1, marca1, modelo1)
             veiculo: {
-              modelo: serverData.equipamento?.modelo || 'Modelo não informado',
+              modelo: `${serverData.equipamento?.marca1 || ''} ${serverData.equipamento?.modelo1 || ''}`.trim() || 'Modelo não informado',
               cor: serverData.equipamento?.cor || 'Cor não informada',
-              placa: serverData.equipamento?.placa || 'Placa não informada',
+              placa: serverData.equipamento?.placa1 || 'Placa não informada',
             },
 
             // Dados do técnico REAIS (se existir)
             tecnicoId: serverData.tecnico_id || serverData.tecnico?.id || null,
-            tecnicoNome: serverData.tecnico?.nome || null, // ← ADICIONADO para sugestão
+            tecnicoNome: serverData.pessoa?.nome || serverData.tecnico?.nome || null, // ← CORRIGIDO: usar pessoa.nome
             nomeEstoque: serverData.equipamento?.nome || 'Equipamento não informado',
 
             // Dados adicionais que podem ser úteis
