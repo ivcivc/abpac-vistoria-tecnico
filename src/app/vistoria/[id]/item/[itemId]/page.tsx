@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { ItemDetail } from '@/components/vistoria/ItemDetail';
 import { LocalVistoriaService, VistoriaLocal } from '@/services/vistoria/LocalVistoriaService';
@@ -20,7 +20,7 @@ export default function ItemDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const carregarDados = useCallback(async () => {
+  const carregarDados = async () => {
     try {
       setLoading(true);
       setError(null);
@@ -65,9 +65,9 @@ export default function ItemDetailPage() {
     } finally {
       setLoading(false);
     }
-  }, [vistoriaId, itemId]);
+  };
 
-  const handleItemUpdate = useCallback(async (itemAtualizado: VistoriaItem) => {
+  const handleItemUpdate = async (itemAtualizado: VistoriaItem) => {
     try {
       console.log('💾 Salvando item atualizado:', itemAtualizado);
 
@@ -90,7 +90,7 @@ export default function ItemDetailPage() {
       console.error('❌ Erro ao salvar item:', err);
       setError(err instanceof Error ? err.message : 'Erro ao salvar');
     }
-  }, [vistoriaId]);
+  };
 
   const voltarParaVistoria = () => {
     router.push(`/vistoria/${vistoriaId}`);
@@ -100,7 +100,7 @@ export default function ItemDetailPage() {
     if (vistoriaId && itemId) {
       carregarDados();
     }
-  }, [vistoriaId, itemId, carregarDados]);
+  }, [vistoriaId, itemId]);
 
   // Loading state
   if (loading) {
