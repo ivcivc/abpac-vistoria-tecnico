@@ -175,13 +175,6 @@ export function ItemDetail({ item, readOnly, onUpdate }: ItemDetailProps) {
               <span>{getActionLabel(acao)} {itemData.tipo || 'Equipamento'}</span>
             </CardTitle>
             <div className="flex items-center gap-2">
-              <Badge variant="outline" className="flex items-center gap-1">
-                <Tag className="w-3 h-3" />
-                {typeof editedItem.categoria === 'object' 
-                  ? (editedItem.categoria as any)?.descricao || (editedItem.categoria as any)?.nome || 'Categoria'
-                  : editedItem.categoria
-                }
-              </Badge>
               {getStatusBadge(itemData.status_item || itemData.status || 'PENDENTE')}
             </div>
           </div>
@@ -200,12 +193,15 @@ export function ItemDetail({ item, readOnly, onUpdate }: ItemDetailProps) {
             </div>
             <div>
               <Label>Equipamento</Label>
-              <p className="text-sm font-medium">
-                {typeof editedItem.categoria === 'object' 
-                  ? (editedItem.categoria as any)?.descricao || (editedItem.categoria as any)?.nome || 'LOCALIZADOR'
-                  : editedItem.categoria || 'LOCALIZADOR'
-                }
-              </p>
+              <div className="mt-1">
+                <Badge variant="outline" className="flex items-center gap-1 w-fit">
+                  <Tag className="w-3 h-3" />
+                  {typeof editedItem.categoria === 'object' 
+                    ? (editedItem.categoria as any)?.descricao || (editedItem.categoria as any)?.nome || 'LOCALIZADOR'
+                    : editedItem.categoria || 'LOCALIZADOR'
+                  }
+                </Badge>
+              </div>
             </div>
           </div>
         </CardContent>
