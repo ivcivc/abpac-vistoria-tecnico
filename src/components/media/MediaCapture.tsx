@@ -66,7 +66,9 @@ export function MediaCapture({
 }: MediaCaptureProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const uploadInputRef = useRef<HTMLInputElement>(null);
+  const captureInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null); // Novo ref para input de vídeo
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
 
   const [stream, setStream] = useState<MediaStream | null>(null);
@@ -89,9 +91,24 @@ export function MediaCapture({
   // Estados para vídeo
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
-  const [recordedChunks, setRecordedChunks] = useState<Blob[]>([]);
   const [videos, setVideos] = useState<MediaFile[]>([]);
   const [recordingTimerRef, setRecordingTimerRef] = useState<NodeJS.Timeout | null>(null);
+  const [supportedVideoMimeType, setSupportedVideoMimeType] = useState<string | null>(null);
+  const recordedChunksRef = useRef<Blob[]>([]);
+
+  // Adicionar estado para debug
+  const [debugInfo, setDebugInfo] = useState<string>('');
+
+  // Adicionar estado para modo de captura de vídeo
+  const [videoMode, setVideoMode] = useState<'native' | 'mediarecorder'>('native');
+
+  // Adicionar função de debug
+  const logDebug = (message: string, data?: any) => {
+    const timestamp = new Date().toISOString();
+    const logEntry = `[${timestamp}] ${message}${data ? ' ' + JSON.stringify(data) : ''}`;
+    console.log(logEntry);
+    setDebugInfo(prev => prev + '\n' + logEntry);
+  };
 
   useEffect(() => {
     // Detectar informações do dispositivo
@@ -117,6 +134,27 @@ export function MediaCapture({
     };
 
     detectDevice();
+
+    // Detectar o melhor formato de vídeo suportado
+    const checkVideoSupport = () => {
+      const mimeTypes = [
+        'video/webm;codecs=vp8', // Priorizar WebM para maior compatibilidade com MediaRecorder
+        'video/webm',
+        'video/mp4;codecs=avc1', // Usar MP4 como fallback, pois pode ser instável
+      ];
+
+      for (const mimeType of mimeTypes) {
+        if (MediaRecorder.isTypeSupported(mimeType)) {
+          console.log(`📹 Formato de vídeo suportado: ${mimeType}`);
+          setSupportedVideoMimeType(mimeType);
+          return;
+        }
+      }
+      console.log('⚠️ Nenhum formato de gravação de vídeo suportado.');
+      setSupportedVideoMimeType(null);
+    };
+
+    checkVideoSupport();
 
     // Detectar suporte à câmera de forma mais robusta
     const checkCameraSupport = async () => {
@@ -559,64 +597,25 @@ export function MediaCapture({
 
   // =============== FUNÇÕES DE VÍDEO ===============
 
-  const startVideoRecording = async () => {
-    if (!stream || !permitirVideo || isRecording) return;
-
+  // Modificar o método de iniciar gravação de vídeo para usar o input nativo
+  const startVideoRecording = () => {
+    if (!permitirVideo) return;
+    
     try {
-      setError(null);
-      setRecordedChunks([]);
-      setRecordingTime(0);
-
-      // Verificar se o navegador suporta MediaRecorder
-      if (!MediaRecorder.isTypeSupported('video/webm;codecs=vp8')) {
-        throw new Error('Gravação de vídeo não suportada neste navegador');
+      logDebug('Iniciando captura de vídeo nativa');
+      
+      // Usar input nativo para todos os dispositivos
+      if (videoInputRef.current) {
+        videoInputRef.current.click();
       }
-
-      // Configurar MediaRecorder
-      const mediaRecorder = new MediaRecorder(stream, {
-        mimeType: 'video/webm;codecs=vp8'
-      });
-
-      mediaRecorderRef.current = mediaRecorder;
-
-      // Handler para dados disponíveis
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          setRecordedChunks((prev) => [...prev, event.data]);
-        }
-      };
-
-      // Handler para fim da gravação
-      mediaRecorder.onstop = () => {
-        console.log('📹 Gravação finalizada');
-      };
-
-      // Iniciar gravação
-      mediaRecorder.start(1000); // Coletar dados a cada 1 segundo
-      setIsRecording(true);
-
-      // Iniciar timer
-      const timer = setInterval(() => {
-        setRecordingTime((prev) => {
-          const newTime = prev + 1;
-          
-          // Parar automaticamente ao atingir o tempo máximo
-          if (newTime >= maxDuracaoVideo) {
-            stopVideoRecording();
-          }
-          
-          return newTime;
-        });
-      }, 1000);
-
-      setRecordingTimerRef(timer);
-
     } catch (err) {
-      console.error('❌ Erro ao iniciar gravação:', err);
-      setError(err instanceof Error ? err.message : 'Erro ao iniciar gravação de vídeo');
-      setIsRecording(false);
+      logDebug('Erro ao iniciar captura de vídeo', err);
+      setError(err instanceof Error ? err.message : 'Erro desconhecido ao iniciar gravação');
     }
   };
+
+  // Simplificar o método de processar vídeo gravado - não será mais necessário
+  // já que usaremos diretamente o arquivo do input
 
   const stopVideoRecording = async () => {
     if (!mediaRecorderRef.current || !isRecording) return;
@@ -632,11 +631,6 @@ export function MediaCapture({
       mediaRecorderRef.current.stop();
       setIsRecording(false);
 
-      // Aguardar um pouco para garantir que todos os chunks foram coletados
-      setTimeout(() => {
-        processRecordedVideo();
-      }, 100);
-
     } catch (err) {
       console.error('❌ Erro ao parar gravação:', err);
       setError('Erro ao finalizar gravação de vídeo');
@@ -645,23 +639,60 @@ export function MediaCapture({
   };
 
   const processRecordedVideo = async () => {
-    if (recordedChunks.length === 0) {
-      setError('Nenhum dado de vídeo foi gravado');
-      return;
-    }
-
     try {
-      // Criar blob do vídeo original
-      const videoBlob = new Blob(recordedChunks, { type: 'video/webm' });
+      const totalSize = recordedChunksRef.current.reduce((sum, chunk) => sum + chunk.size, 0);
+      logDebug('Processando vídeo', { 
+        chunks: recordedChunksRef.current.length,
+        totalSize,
+        mimeType: supportedVideoMimeType 
+      });
+
+      if (recordedChunksRef.current.length === 0) {
+        setError('Nenhum dado de vídeo disponível');
+        return;
+      }
+
+      // Criar blob do vídeo
+      const videoBlob = new Blob(recordedChunksRef.current, { 
+        type: supportedVideoMimeType || 'video/webm;codecs=vp8' 
+      });
       
-      console.log(`📹 Processando vídeo original: ${Math.round(videoBlob.size / 1024 / 1024 * 100) / 100}MB`);
+      logDebug('Blob criado', { 
+        size: videoBlob.size, 
+        type: videoBlob.type,
+        isValid: videoBlob.size > 0 
+      });
 
-      // Comprimir vídeo se necessário
-      const videoComprimido = await compressVideo(videoBlob);
-      const localUrl = URL.createObjectURL(videoComprimido);
+      if (videoBlob.size === 0) {
+        setError('O vídeo capturado está vazio');
+        return;
+      }
 
-      // Criar objeto MediaFile para vídeo
-      const novoVideo: MediaFile = {
+      // Testar se o blob é válido criando uma URL temporária
+      const testUrl = URL.createObjectURL(videoBlob);
+      const video = document.createElement('video');
+      
+      video.onloadedmetadata = () => {
+        logDebug('Vídeo válido detectado', {
+          duration: video.duration,
+          width: video.videoWidth,
+          height: video.videoHeight
+        });
+        URL.revokeObjectURL(testUrl);
+      };
+      
+      video.onerror = () => {
+        logDebug('Erro ao carregar vídeo de teste');
+        URL.revokeObjectURL(testUrl);
+      };
+      
+      video.src = testUrl;
+
+      const localUrl = URL.createObjectURL(videoBlob);
+      const extensao = supportedVideoMimeType?.includes('mp4') ? 'mp4' : 'webm';
+      const fileName = `video_${Date.now()}.${extensao}`;
+
+      const newVideo: MediaFile = {
         id: `video_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
         url: localUrl,
         localUrl: localUrl,
@@ -669,12 +700,12 @@ export function MediaCapture({
         timestamp: new Date(),
         descricao: descricao || `${getTipoEvidenciaLabel(tipoEvidencia)} - Vídeo`,
         tipoEvidencia,
-        tamanho: videoComprimido.size,
-        nomeArquivo: `${tipoEvidencia}_video_${Date.now()}.webm`,
+        tamanho: videoBlob.size,
+        nomeArquivo: fileName,
         duracao: recordingTime
       };
 
-      const novosVideos = [...videos, novoVideo];
+      const novosVideos = [...videos, newVideo];
       setVideos(novosVideos);
 
       // Combinar fotos e vídeos para onCapture
@@ -682,14 +713,14 @@ export function MediaCapture({
       onCapture(todaMedia);
 
       // Limpar chunks
-      setRecordedChunks([]);
+      recordedChunksRef.current = [];
       setRecordingTime(0);
 
-      console.log('✅ Vídeo processado e salvo:', novoVideo.id);
+      console.log('✅ Vídeo processado e salvo:', newVideo.id);
 
     } catch (err) {
-      console.error('❌ Erro ao processar vídeo:', err);
-      setError('Erro ao processar vídeo gravado');
+      logDebug('Erro ao processar vídeo', err);
+      setError(err instanceof Error ? err.message : 'Erro ao processar vídeo');
     }
   };
 
@@ -838,6 +869,7 @@ export function MediaCapture({
 
   // =============== FIM FUNÇÕES DE VÍDEO ===============
 
+  // Modificar o método de upload de arquivo para lidar melhor com vídeos
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (!files) return;
@@ -883,9 +915,32 @@ export function MediaCapture({
       if (isVideo) {
         // Para vídeos, tentar obter duração
         const videoElement = document.createElement('video');
+        videoElement.preload = 'metadata';
+        
         videoElement.onloadedmetadata = () => {
-          (novoMedia as any).duracao = Math.round(videoElement.duration);
+          novoMedia.duracao = Math.round(videoElement.duration);
+          
+          // Atualizar a lista de vídeos com a duração correta
+          setVideos(prev => prev.map(v => 
+            v.id === novoMedia.id ? {...v, duracao: Math.round(videoElement.duration)} : v
+          ));
+          
+          // Atualizar callback
+          const todaMedia = [...fotos, ...videos.map(v => 
+            v.id === novoMedia.id ? {...v, duracao: Math.round(videoElement.duration)} : v
+          )];
+          onCapture(todaMedia);
+          
+          // Limpar
+          URL.revokeObjectURL(videoElement.src);
         };
+        
+        videoElement.onerror = () => {
+          logDebug('Erro ao carregar metadados do vídeo', file.name);
+          // Mesmo com erro, continuamos usando o vídeo
+          URL.revokeObjectURL(videoElement.src);
+        };
+        
         videoElement.src = localUrl;
 
         const novosVideos = [...videos, novoMedia];
@@ -894,6 +949,12 @@ export function MediaCapture({
         // Combinar toda mídia
         const todaMedia = [...fotos, ...novosVideos];
         onCapture(todaMedia);
+        
+        logDebug('Vídeo adicionado com sucesso', {
+          nome: file.name,
+          tamanho: file.size,
+          tipo: file.type
+        });
       } else {
         // Para fotos
         const novasFotos = [...fotos, novoMedia];
@@ -955,400 +1016,393 @@ export function MediaCapture({
   }
 
   return (
-    <div className="space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Camera className="w-5 h-5" />
-          <h3 className="font-medium">Captura de Evidências</h3>
-          <Badge className={getTipoEvidenciaColor(tipoEvidencia)}>
+    <Card className="w-full">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-lg flex items-center justify-between">
+          <span>Captura de Evidências</span>
+          <Badge variant="outline" className={getTipoEvidenciaColor(tipoEvidencia)}>
             {getTipoEvidenciaLabel(tipoEvidencia)}
           </Badge>
-        </div>
-        <div className="flex gap-2">
-          <Badge variant="outline" className={fotos.length < minFotos ? 'border-red-500 text-red-600' : ''}>
-            {fotos.length} fotos {minFotos > 0 && `(mín: ${minFotos})`}
-          </Badge>
-          {permitirVideo && (
-            <Badge variant="outline" className={videos.length < minVideos ? 'border-red-500 text-red-600' : ''}>
-              {videos.length} vídeos {minVideos > 0 && `(mín: ${minVideos})`}
-            </Badge>
-          )}
-        </div>
-      </div>
-
-
-
-      {/* Erro */}
-      {error && (
-        <Card className="border-red-200 bg-red-50">
-          <CardContent className="p-4">
-            <div className="flex items-start gap-2 text-red-700">
-              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />  
-              <div className="text-sm">
-                <div className="font-medium mb-1">Problema com a câmera</div>
-                <div>{error}</div>
-              </div>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* Área de câmera */}
+        <div className="relative">
+          {/* Mensagem de erro */}
+          {error && (
+            <div className="mb-2 p-2 bg-red-50 border border-red-200 rounded-md text-red-600 text-sm flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4" />
+              <span>{error}</span>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="ml-auto text-red-600 hover:bg-red-100 p-1 h-auto"
+                onClick={() => setError(null)}
+              >
+                <X className="w-3 h-3" />
+              </Button>
             </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Estado de carregamento da câmera */}
-      {isRequestingCamera && (
-        <Card className="border-blue-200 bg-blue-50">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 text-blue-700">
-              <Loader2 className="w-4 h-4 animate-spin" />
-              <span className="text-sm">
-                Solicitando acesso à câmera... 
-                {deviceInfo?.isIOS && ' (Toque em "Permitir" se aparecer uma solicitação)'}
-              </span>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Câmera - Agora controlada por 'shouldRenderVideo' */}
-      {shouldRenderVideo && (
-        <Card>
-          <CardContent className="p-4">
-            <div className="relative">
-              <video
-                ref={videoRef}
-                autoPlay
-                playsInline
-                muted
-                className={`w-full h-64 object-cover rounded-lg bg-black transition-opacity duration-300 ${
-                  isCameraActive ? 'opacity-100' : 'opacity-0'
-                }`}
-              />
-              
-              {/* Overlay de Carregamento */}
-              {isRequestingCamera && !error && (
-                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-black bg-opacity-70 text-white rounded-lg">
-                    <Loader2 className="w-8 h-8 animate-spin" />
-                    <p className="mt-2 text-sm">Iniciando câmera...</p>
-                 </div>
-              )}
-              
-              {/* Controles da câmera (visíveis apenas quando ativa) */}
-              {isCameraActive && (
-                <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex gap-2">
-                  {/* Botão de foto */}
-                  <Button
-                    onClick={capturePhoto}
-                    disabled={isCapturing || isRecording}
-                    className="bg-white text-black hover:bg-gray-100"
-                    title="Tirar foto"
-                  >
-                    {isCapturing ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Camera className="w-4 h-4" />
-                    )}
-                  </Button>
-
-                  {/* Botões de vídeo (apenas se permitir vídeo) */}
-                  {permitirVideo && (
-                    <>
-                      <Button
-                        onClick={isRecording ? stopVideoRecording : startVideoRecording}
-                        disabled={isCapturing || videos.length >= maxVideos}
-                        className={`bg-white hover:bg-gray-100 ${
-                          isRecording ? 'text-red-600 border-red-500' : 'text-black'
-                        }`}
-                        title={isRecording ? 'Parar gravação' : 'Gravar vídeo'}
-                      >
-                        {isRecording ? (
-                          <Square className="w-4 h-4" />
-                        ) : (
-                          <Video className="w-4 h-4" />
-                        )}
-                      </Button>
-                    </>
-                  )}
-                  
-                  <Button
-                    onClick={stopCamera}
-                    variant="outline"
-                    className="bg-white text-black hover:bg-gray-100"
-                    title="Fechar câmera"
-                  >
-                    <X className="w-4 h-4" />
-                  </Button>
-                </div>
-              )}
-
-              {/* Indicador de tempo de gravação */}
-              {isRecording && (
-                <div className="absolute top-4 left-1/2 transform -translate-x-1/2">
-                  <div className="bg-red-600 text-white px-3 py-1 rounded-full flex items-center gap-2">
-                    <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
-                    <span className="text-sm font-mono">
-                      {formatRecordingTime(recordingTime)} / {formatRecordingTime(maxDuracaoVideo)}
-                    </span>
-                  </div>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Controles - Agora controlados por '!shouldRenderVideo' para evitar sobreposição */}
-      {!shouldRenderVideo && (
-        <div className="flex gap-2">
-          {/* Mostrar botão de câmera apenas se houver suporte confirmado */}
-          {cameraSupported === true && (
-            <Button
-              onClick={error ? retryCamera : handleStartCameraClick}
-              disabled={fotos.length >= maxFotos && (!permitirVideo || videos.length >= maxVideos)}
-              className="flex-1"
-            >
-              {error ? (
-                <>
-                  <RotateCcw className="w-4 h-4 mr-2" />
-                  Tentar Novamente
-                </>
-              ) : (
-                <>
-                  <Camera className="w-4 h-4 mr-2" />
-                  {permitirVideo ? 'Câmera/Vídeo' : 'Usar Câmera'}
-                </>
-              )}
-            </Button>
           )}
           
-          {/* Botão de upload sempre disponível */}
-          <Button
-            onClick={() => fileInputRef.current?.click()}
-            variant="outline"
-            disabled={false}
-            className="flex-1"
-          >
-            <Download className="w-4 h-4 mr-2" />
-            Upload {permitirVideo ? 'Mídia' : 'Fotos'}
-          </Button>
+          {/* Debug Info (em desenvolvimento) */}
+          {debugInfo && (
+            <details className="mb-2 p-2 bg-gray-50 border border-gray-200 rounded-md text-xs">
+              <summary className="cursor-pointer font-medium">Debug Info</summary>
+              <pre className="mt-2 whitespace-pre-wrap">{debugInfo}</pre>
+            </details>
+          )}
+
+          {/* Vídeo da câmera (só renderiza quando necessário) */}
+          {shouldRenderVideo && (
+            <div className="relative bg-black rounded-lg overflow-hidden aspect-video">
+              <video 
+                ref={videoRef}
+                autoPlay 
+                playsInline 
+                muted
+                className="w-full h-full object-cover"
+              />
+              
+              {/* Canvas para captura (escondido) */}
+              <canvas ref={canvasRef} className="hidden" />
+              
+              {/* Overlay de carregamento */}
+              {isRequestingCamera && (
+                <div className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center">
+                  <Loader2 className="w-8 h-8 animate-spin text-white mb-2" />
+                  <p className="text-white text-sm">Acessando câmera...</p>
+                </div>
+              )}
+              
+              {/* Overlay de gravação */}
+              {isRecording && (
+                <div className="absolute top-2 left-2 right-2 flex items-center justify-between">
+                  <Badge variant="destructive" className="animate-pulse flex items-center gap-1">
+                    <span className="w-2 h-2 bg-white rounded-full"></span>
+                    REC {formatRecordingTime(recordingTime)}
+                  </Badge>
+                  
+                  <Button 
+                    variant="destructive" 
+                    size="sm"
+                    onClick={stopVideoRecording}
+                    className="h-7"
+                  >
+                    <Square className="w-4 h-4 mr-1" />
+                    Parar
+                  </Button>
+                </div>
+              )}
+              
+              {/* Botão de captura */}
+              {isCameraActive && !isRecording && (
+                <div className="absolute bottom-2 inset-x-0 flex justify-center items-center gap-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="bg-white/80 hover:bg-white border-none"
+                    onClick={capturePhoto}
+                    disabled={isCapturing || disabled}
+                  >
+                    <Camera className="w-5 h-5" />
+                  </Button>
+                  
+                  {permitirVideo && (
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="bg-white/80 hover:bg-white border-none text-red-500"
+                      onClick={startVideoRecording}
+                      disabled={isRecording || disabled}
+                    >
+                      <Video className="w-5 h-5" />
+                    </Button>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+          
+          {/* Área de controles da câmera */}
+          <div className="mt-3 flex flex-wrap gap-2">
+            {!isCameraActive ? (
+              <>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={handleStartCameraClick}
+                  disabled={isRequestingCamera || disabled || cameraSupported === false}
+                  className="flex-1"
+                >
+                  {isRequestingCamera ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Acessando...
+                    </>
+                  ) : (
+                    <>
+                      <Camera className="w-4 h-4 mr-2" />
+                      Câmera/Foto
+                    </>
+                  )}
+                </Button>
+                
+                {permitirVideo && (
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={startVideoRecording}
+                    disabled={disabled}
+                    className="flex-1"
+                  >
+                    <Video className="w-4 h-4 mr-2" />
+                    Gravar Vídeo
+                  </Button>
+                )}
+                
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => uploadInputRef.current?.click()}
+                  disabled={disabled}
+                >
+                  <Download className="w-4 h-4" />
+                </Button>
+              </>
+            ) : (
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={stopCamera}
+                disabled={disabled}
+                className="w-full"
+              >
+                <X className="w-4 h-4 mr-2" />
+                Fechar Câmera
+              </Button>
+            )}
+          </div>
+          
+          {/* Inputs escondidos */}
+          <input 
+            ref={uploadInputRef}
+            type="file" 
+            accept="image/*,video/*" 
+            onChange={handleFileUpload}
+            className="hidden"
+            multiple
+          />
+          
+          {/* Input para captura direta em dispositivos móveis */}
+          <input 
+            ref={captureInputRef}
+            type="file" 
+            accept="image/*" 
+            capture="environment"
+            onChange={handleFileUpload}
+            className="hidden"
+          />
+          
+          {/* Novo input específico para vídeo */}
+          <input 
+            ref={videoInputRef}
+            type="file" 
+            accept="video/*" 
+            capture="environment"
+            onChange={handleFileUpload}
+            className="hidden"
+          />
         </div>
-      )}
-
-      {/* Aviso se câmera não for suportada */}
-      {cameraSupported === false && !shouldRenderVideo && (
-        <Card className="border-yellow-200 bg-yellow-50">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 text-yellow-700">
-              <AlertTriangle className="w-4 h-4" />
-              <div className="text-sm">
-                <div className="font-medium">Câmera não disponível</div>
-                <div>Use o botão "Upload" para selecionar fotos{permitirVideo ? ' e vídeos' : ''} da galeria.</div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Input de arquivo (oculto) */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept={permitirVideo ? "image/*,video/*" : "image/*"}
-        multiple
-        onChange={handleFileUpload}
-        className="hidden"
-      />
-
-      {/* Canvas para captura (oculto) */}
-      <canvas ref={canvasRef} className="hidden" />
-
-      {/* Galeria de fotos */}
-      {fotos.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Eye className="w-5 h-5" />
-              Fotos Capturadas ({fotos.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-              {fotos.map((foto) => (
-                <div key={foto.id} className="relative group">
-                  <img
-                    src={foto.localUrl}
-                    alt={foto.descricao}
-                    className="w-full h-32 object-cover rounded-lg border"
-                  />
-                  
-                  {/* Overlay com ações */}
-                  <div className="absolute inset-0 bg-black bg-opacity-50 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => downloadPhoto(foto)}
-                      className="bg-white text-black hover:bg-gray-100"
-                    >
-                      <Download className="w-3 h-3" />
-                    </Button>
+        
+        {/* Galeria de fotos */}
+        {fotos.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Eye className="w-5 h-5" />
+                Fotos Capturadas ({fotos.length})
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                {fotos.map((foto) => (
+                  <div key={foto.id} className="relative group">
+                    <img
+                      src={foto.localUrl}
+                      alt={foto.descricao}
+                      className="w-full h-32 object-cover rounded-lg border"
+                    />
                     
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => removePhoto(foto.id)}
-                      className="bg-white text-red-600 hover:bg-red-50"
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </Button>
-                  </div>
-                  
-                  {/* Info da foto */}
-                  <div className="absolute bottom-2 left-2 right-2">
-                    <div className="bg-black bg-opacity-75 text-white text-xs p-1 rounded">
-                      {foto.timestamp.toLocaleTimeString('pt-BR')}
+                    {/* Overlay com ações */}
+                    <div className="absolute inset-0 bg-black bg-opacity-50 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => downloadPhoto(foto)}
+                        className="bg-white text-black hover:bg-gray-100"
+                      >
+                        <Download className="w-3 h-3" />
+                      </Button>
+                      
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => removePhoto(foto.id)}
+                        className="bg-white text-red-600 hover:bg-red-50"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
                     </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Galeria de vídeos */}
-      {videos.length > 0 && permitirVideo && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Video className="w-5 h-5" />
-              Vídeos Capturados ({videos.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {videos.map((video) => (
-                <div key={video.id} className="relative group">
-                  <video
-                    src={video.localUrl}
-                    className="w-full h-40 object-cover rounded-lg border"
-                    controls
-                    preload="metadata"
-                    muted
-                  />
-                  
-                  {/* Overlay com ações */}
-                  <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => downloadVideo(video)}
-                      className="bg-white text-black hover:bg-gray-100"
-                    >
-                      <Download className="w-3 h-3" />
-                    </Button>
                     
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => removeVideo(video.id)}
-                      className="bg-white text-red-600 hover:bg-red-50"
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </Button>
-                  </div>
-                  
-                  {/* Info do vídeo */}
-                  <div className="absolute bottom-2 left-2 right-2">
-                    <div className="bg-black bg-opacity-75 text-white text-xs p-2 rounded">
-                      <div className="flex justify-between items-center">
-                        <span>{video.timestamp.toLocaleTimeString('pt-BR')}</span>
-                        {video.duracao && (
-                          <span className="flex items-center gap-1">
-                            <VolumeX className="w-3 h-3" />
-                            {formatRecordingTime(video.duracao)}
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-gray-300 mt-1">
-                        {Math.round(video.tamanho / 1024 / 1024 * 100) / 100} MB
+                    {/* Info da foto */}
+                    <div className="absolute bottom-2 left-2 right-2">
+                      <div className="bg-black bg-opacity-75 text-white text-xs p-1 rounded">
+                        {foto.timestamp.toLocaleTimeString('pt-BR')}
                       </div>
                     </div>
                   </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Galeria de vídeos */}
+        {videos.length > 0 && permitirVideo && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Video className="w-5 h-5" />
+                Vídeos Capturados ({videos.length})
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {videos.map((video) => (
+                  <div key={video.id} className="relative group">
+                    <video
+                      src={video.localUrl}
+                      className="w-full h-40 object-cover rounded-lg border"
+                      controls
+                      preload="metadata"
+                      muted
+                    />
+                    
+                    {/* Overlay com ações */}
+                    <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => downloadVideo(video)}
+                        className="bg-white text-black hover:bg-gray-100"
+                      >
+                        <Download className="w-3 h-3" />
+                      </Button>
+                      
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => removeVideo(video.id)}
+                        className="bg-white text-red-600 hover:bg-red-50"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
+                    </div>
+                    
+                    {/* Info do vídeo */}
+                    <div className="absolute bottom-2 left-2 right-2">
+                      <div className="bg-black bg-opacity-75 text-white text-xs p-2 rounded">
+                        <div className="flex justify-between items-center">
+                          <span>{video.timestamp.toLocaleTimeString('pt-BR')}</span>
+                          {video.duracao && (
+                            <span className="flex items-center gap-1">
+                              <VolumeX className="w-3 h-3" />
+                              {formatRecordingTime(video.duracao)}
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-gray-300 mt-1">
+                          {Math.round(video.tamanho / 1024 / 1024 * 100) / 100} MB
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Status */}
+        {(fotos.length > 0 || videos.length > 0) && (
+          <Card className={
+            (fotos.length >= minFotos && (!permitirVideo || videos.length >= minVideos))
+              ? "border-green-200 bg-green-50" 
+              : "border-yellow-200 bg-yellow-50"
+          }>
+            <CardContent className="p-4 space-y-2">
+              {/* Status das fotos */}
+              {fotos.length > 0 && (
+                <div className={`flex items-center gap-2 ${fotos.length >= minFotos ? 'text-green-700' : 'text-yellow-700'}`}>
+                  {fotos.length >= minFotos ? (
+                    <CheckCircle className="w-4 h-4" />
+                  ) : (
+                    <AlertTriangle className="w-4 h-4" />
+                  )}
+                  <span className="text-sm">
+                    {fotos.length} {fotos.length === 1 ? 'foto capturada' : 'fotos capturadas'}
+                    {minFotos > 0 && fotos.length < minFotos && ` (faltam ${minFotos - fotos.length})`}
+                    {minFotos > 0 && fotos.length >= minFotos && ' (mínimo atingido)'}
+                  </span>
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+              )}
+              
+              {/* Status dos vídeos */}
+              {permitirVideo && videos.length > 0 && (
+                <div className={`flex items-center gap-2 ${videos.length >= minVideos ? 'text-green-700' : 'text-yellow-700'}`}>
+                  {videos.length >= minVideos ? (
+                    <CheckCircle className="w-4 h-4" />
+                  ) : (
+                    <AlertTriangle className="w-4 h-4" />
+                  )}
+                  <span className="text-sm">
+                    {videos.length} {videos.length === 1 ? 'vídeo capturado' : 'vídeos capturados'}
+                    {minVideos > 0 && videos.length < minVideos && ` (faltam ${minVideos - videos.length})`}
+                    {minVideos > 0 && videos.length >= minVideos && ' (mínimo atingido)'}
+                  </span>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
-      {/* Status */}
-      {(fotos.length > 0 || videos.length > 0) && (
-        <Card className={
-          (fotos.length >= minFotos && (!permitirVideo || videos.length >= minVideos))
-            ? "border-green-200 bg-green-50" 
-            : "border-yellow-200 bg-yellow-50"
-        }>
-          <CardContent className="p-4 space-y-2">
-            {/* Status das fotos */}
-            {fotos.length > 0 && (
-              <div className={`flex items-center gap-2 ${fotos.length >= minFotos ? 'text-green-700' : 'text-yellow-700'}`}>
-                {fotos.length >= minFotos ? (
-                  <CheckCircle className="w-4 h-4" />
-                ) : (
-                  <AlertTriangle className="w-4 h-4" />
-                )}
-                <span className="text-sm">
-                  {fotos.length} {fotos.length === 1 ? 'foto capturada' : 'fotos capturadas'}
-                  {minFotos > 0 && fotos.length < minFotos && ` (faltam ${minFotos - fotos.length})`}
-                  {minFotos > 0 && fotos.length >= minFotos && ' (mínimo atingido)'}
+        {/* Avisos se não há mídia obrigatória */}
+        {fotos.length === 0 && minFotos > 0 && (
+          <Card className="border-red-200 bg-red-50">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 text-red-700">
+                <AlertTriangle className="w-4 h-4" />
+                <span className="text-sm font-medium">
+                  Mínimo de {minFotos} {minFotos === 1 ? 'foto obrigatória' : 'fotos obrigatórias'}
                 </span>
               </div>
-            )}
-            
-            {/* Status dos vídeos */}
-            {permitirVideo && videos.length > 0 && (
-              <div className={`flex items-center gap-2 ${videos.length >= minVideos ? 'text-green-700' : 'text-yellow-700'}`}>
-                {videos.length >= minVideos ? (
-                  <CheckCircle className="w-4 h-4" />
-                ) : (
-                  <AlertTriangle className="w-4 h-4" />
-                )}
-                <span className="text-sm">
-                  {videos.length} {videos.length === 1 ? 'vídeo capturado' : 'vídeos capturados'}
-                  {minVideos > 0 && videos.length < minVideos && ` (faltam ${minVideos - videos.length})`}
-                  {minVideos > 0 && videos.length >= minVideos && ' (mínimo atingido)'}
+            </CardContent>
+          </Card>
+        )}
+
+        {permitirVideo && videos.length === 0 && minVideos > 0 && (
+          <Card className="border-red-200 bg-red-50">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 text-red-700">
+                <AlertTriangle className="w-4 h-4" />
+                <span className="text-sm font-medium">
+                  Mínimo de {minVideos} {minVideos === 1 ? 'vídeo obrigatório' : 'vídeos obrigatórios'}
                 </span>
               </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Avisos se não há mídia obrigatória */}
-      {fotos.length === 0 && minFotos > 0 && (
-        <Card className="border-red-200 bg-red-50">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 text-red-700">
-              <AlertTriangle className="w-4 h-4" />
-              <span className="text-sm font-medium">
-                Mínimo de {minFotos} {minFotos === 1 ? 'foto obrigatória' : 'fotos obrigatórias'}
-              </span>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {permitirVideo && videos.length === 0 && minVideos > 0 && (
-        <Card className="border-red-200 bg-red-50">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 text-red-700">
-              <AlertTriangle className="w-4 h-4" />
-              <span className="text-sm font-medium">
-                Mínimo de {minVideos} {minVideos === 1 ? 'vídeo obrigatório' : 'vídeos obrigatórios'}
-              </span>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-    </div>
+            </CardContent>
+          </Card>
+        )}
+      </CardContent>
+    </Card>
   );
 } 
