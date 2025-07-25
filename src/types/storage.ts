@@ -92,7 +92,7 @@ export interface Despesa {
   id: string;
   itemId: string;
   vistoriaId: string;
-  categoria: 'combustivel' | 'alimentacao' | 'hospedagem' | 'outro';
+  tipo: 'SERVICO' | 'MATERIAL' | 'DESLOCAMENTO' | 'OUTROS';
   valor: number;
   descricao: string;
   comprovante?: Evidencia;

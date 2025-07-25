@@ -10,6 +10,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { StatusBadge } from './StatusBadge';
 import { MediaCapture, MediaFile } from '@/components/media/MediaCapture';
+import { DespesaForm } from '@/components/despesas';
+import { Despesa } from '@/types/storage';
 import { 
   Save, 
   CheckCircle, 
@@ -24,7 +26,11 @@ import {
   MapPin,
   FileText,
   Copy,
-  AlertCircle
+  AlertCircle,
+  Receipt,
+  Plus,
+  Edit,
+  DollarSign
 } from 'lucide-react';
 
 interface ItemDetailProps {
@@ -42,6 +48,11 @@ export function ItemDetail({ item, readOnly, onUpdate }: ItemDetailProps) {
   const [fotosNumeroSerie, setFotosNumeroSerie] = useState<MediaFile[]>([]);
   const [fotosLocalInstalacao, setFotosLocalInstalacao] = useState<MediaFile[]>([]);
   const [fotosOutrasEvidencias, setFotosOutrasEvidencias] = useState<MediaFile[]>([]);
+  
+  // Estados para despesas
+  const [despesas, setDespesas] = useState<Despesa[]>(item.despesas || []);
+  const [showDespesaForm, setShowDespesaForm] = useState(false);
+  const [editingDespesa, setEditingDespesa] = useState<Despesa | undefined>(undefined);
 
   useEffect(() => {
     setEditedItem(item);
@@ -51,6 +62,10 @@ export function ItemDetail({ item, readOnly, onUpdate }: ItemDetailProps) {
     setFotosNumeroSerie([]);
     setFotosLocalInstalacao([]);
     setFotosOutrasEvidencias([]);
+    // Reset das despesas quando item mudar
+    setDespesas(item.despesas || []);
+    setShowDespesaForm(false);
+    setEditingDespesa(undefined);
   }, [item]);
 
   const handleFieldChange = (field: string, value: any) => {
@@ -160,7 +175,9 @@ export function ItemDetail({ item, readOnly, onUpdate }: ItemDetailProps) {
       // Salvar referências das fotos capturadas
       fotos_numero_serie: fotosNumeroSerie,
       fotos_local_instalacao: fotosLocalInstalacao,
-      fotos_outras_evidencias: fotosOutrasEvidencias
+      fotos_outras_evidencias: fotosOutrasEvidencias,
+      // Salvar despesas
+      despesas: despesas
     } as any;
 
     onUpdate(updatedItem);
@@ -173,6 +190,57 @@ export function ItemDetail({ item, readOnly, onUpdate }: ItemDetailProps) {
       handleFieldChange(executedField, plannedValue);
     }
   };
+
+  // Funções para gerenciar despesas
+  const handleAddDespesa = () => {
+    setEditingDespesa(undefined);
+    setShowDespesaForm(true);
+  };
+
+  const handleEditDespesa = (despesa: Despesa) => {
+    setEditingDespesa(despesa);
+    setShowDespesaForm(true);
+  };
+
+  const handleSaveDespesa = (novaDespesa: Omit<Despesa, 'id'>) => {
+    const despesaComId: Despesa = {
+      ...novaDespesa,
+      id: editingDespesa?.id || `despesa_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+    };
+
+    if (editingDespesa) {
+      // Editando despesa existente
+      setDespesas(prev => prev.map(d => d.id === editingDespesa.id ? despesaComId : d));
+    } else {
+      // Adicionando nova despesa
+      setDespesas(prev => [...prev, despesaComId]);
+    }
+
+    setShowDespesaForm(false);
+    setEditingDespesa(undefined);
+    setHasChanges(true);
+  };
+
+  const handleCancelDespesa = () => {
+    setShowDespesaForm(false);
+    setEditingDespesa(undefined);
+  };
+
+  const handleDeleteDespesa = (despesaId: string) => {
+    setDespesas(prev => prev.filter(d => d.id !== despesaId));
+    setHasChanges(true);
+  };
+
+  // Função para formatar valor monetário para exibição
+  const formatCurrency = (value: number): string => {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL'
+    }).format(value);
+  };
+
+  // Calcular total das despesas
+  const totalDespesas = despesas.reduce((total, despesa) => total + despesa.valor, 0);
 
   const getActionIcon = (acao: string) => {
     switch (acao?.toUpperCase()) {
@@ -549,7 +617,140 @@ export function ItemDetail({ item, readOnly, onUpdate }: ItemDetailProps) {
         </CardContent>
       </Card>
 
-      
+      {/* DESPESAS DO ITEM */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <Receipt className="w-5 h-5" />
+              Despesas do Item
+              <Badge className="bg-gray-100 text-gray-800 text-xs">Opcional</Badge>
+            </CardTitle>
+            {!readOnly && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleAddDespesa}
+                className="flex items-center gap-1"
+              >
+                <Plus className="w-4 h-4" />
+                Adicionar Despesa
+              </Button>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent>
+          {despesas.length > 0 ? (
+            <div className="space-y-4">
+              {/* Lista de despesas */}
+              <div className="space-y-3">
+                {despesas.map((despesa) => (
+                  <div 
+                    key={despesa.id}
+                    className="p-4 border rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                                                     <Badge 
+                             variant="outline" 
+                             className="text-xs"
+                           >
+                             {despesa.tipo === 'SERVICO' && '🔧 Serviço'}
+                             {despesa.tipo === 'MATERIAL' && '📦 Material'}
+                             {despesa.tipo === 'DESLOCAMENTO' && '🚗 Deslocamento'}
+                             {despesa.tipo === 'OUTROS' && '📄 Outros'}
+                           </Badge>
+                          <span className="text-lg font-bold text-green-600">
+                            {formatCurrency(despesa.valor)}
+                          </span>
+                          {despesa.aprovada && (
+                            <Badge className="bg-green-100 text-green-800 text-xs">
+                              Aprovada
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="text-sm text-gray-700 mb-2">
+                          {despesa.descricao}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {new Date(despesa.timestamp).toLocaleString('pt-BR')}
+                        </p>
+                        {despesa.comprovante && (
+                          <div className="mt-2">
+                            <Badge className="bg-blue-100 text-blue-800 text-xs">
+                              📎 Comprovante anexado
+                            </Badge>
+                          </div>
+                        )}
+                      </div>
+                      {!readOnly && !despesa.aprovada && (
+                        <div className="flex gap-1 ml-4">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleEditDespesa(despesa)}
+                            className="h-8 w-8 p-0"
+                          >
+                            <Edit className="w-3 h-3" />
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleDeleteDespesa(despesa.id)}
+                            className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Total das despesas */}
+              <div className="pt-3 border-t">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-gray-700">
+                    Total das Despesas:
+                  </span>
+                  <span className="text-lg font-bold text-green-600">
+                    {formatCurrency(totalDespesas)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-8 text-gray-500">
+              <Receipt className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+              <p className="text-sm">Nenhuma despesa registrada para este item</p>
+              {!readOnly && (
+                <p className="text-xs mt-1">
+                  Clique em "Adicionar Despesa" para registrar gastos relacionados a este item
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Formulário de despesa */}
+          {showDespesaForm && (
+            <div className="mt-6 pt-6 border-t">
+              <DespesaForm
+                despesa={editingDespesa}
+                vistoriaId={item.vistoriaId}
+                itemId={item.id}
+                onSave={handleSaveDespesa}
+                onCancel={handleCancelDespesa}
+                readOnly={false}
+              />
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* BOTÕES DE AÇÃO */}
       {!readOnly && (
