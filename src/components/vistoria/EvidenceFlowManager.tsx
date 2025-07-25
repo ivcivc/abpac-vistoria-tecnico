@@ -72,19 +72,38 @@ export function EvidenceFlowManager({
   }, [status, needsSerialPhoto, numeroSerieEvidences.length]);
 
   const handleNumeroSerieCapture = (evidences: MediaFile[]) => {
-    // Enriquecer evidências com metadados específicos
-    const enrichedEvidences = evidences.map(evidence => ({
-      ...evidence,
-      metadados: {
-        momentoCaptura: 'antes_acao' as const,
-        acaoRelacionada: acaoUpper,
-        stepFluxo: 'numero_serie' as const,
-        equipamentoTipo: 'Localizador/Bloqueador', // Pode ser dinâmico baseado no item
-        qualidadeImagem: 'boa' as const, // Por padrão, pode ser avaliado futuramente
-        visibilidadeElementos: true,
-        observacoesTecnico: `Foto do número de série capturada antes de ${acao.toLowerCase()}`
+    console.log('🔄 EvidenceFlowManager: Recebendo evidências do número de série', {
+      evidenciasRecebidas: evidences.length,
+      evidenciasAtuais: numeroSerieEvidences.length,
+      acao: acaoUpper
+    });
+    
+    // Enriquecer evidências com metadados específicos APENAS para evidências novas
+    const enrichedEvidences = evidences.map(evidence => {
+      // Se a evidência já tem metadados, mantê-los. Senão, adicionar.
+      if (evidence.metadados) {
+        console.log('🔄 Evidência já tem metadados:', evidence.id);
+        return evidence;
       }
-    }));
+      
+      console.log('🔄 Adicionando metadados à evidência:', evidence.id);
+      return {
+        ...evidence,
+        metadados: {
+          momentoCaptura: 'antes_acao' as const,
+          acaoRelacionada: acaoUpper,
+          stepFluxo: 'numero_serie',
+          equipamentoTipo: 'Localizador/Bloqueador', // Pode ser dinâmico baseado no item
+          qualidadeImagem: 'boa' as const, // Por padrão, pode ser avaliado futuramente
+          visibilidadeElementos: true,
+          observacoesTecnico: `Foto do número de série capturada antes de ${acao.toLowerCase()}`
+        }
+      };
+    });
+    
+    console.log('🔄 EvidenceFlowManager: Atualizando estado com evidências enriquecidas', {
+      evidenciasEnriquecidas: enrichedEvidences.length
+    });
     
     setNumeroSerieEvidences(enrichedEvidences);
     onEvidenceCapture('numero_serie', enrichedEvidences);
@@ -113,24 +132,31 @@ export function EvidenceFlowManager({
   };
 
   const handleLocalInstalacaoCapture = (evidences: MediaFile[]) => {
-    // Enriquecer evidências com metadados específicos
-    const enrichedEvidences = evidences.map(evidence => ({
-      ...evidence,
-      metadados: {
-        momentoCaptura: 'apos_acao' as const,
-        acaoRelacionada: acaoUpper,
-        stepFluxo: 'local_instalacao' as const,
-        tipoLocal: 'oculto' as const, // Por padrão para equipamentos de segurança
-        descricaoLocal: `Local onde o equipamento foi ${
-          acaoUpper === 'INSTALAR' ? 'instalado/escondido' :
-          acaoUpper === 'REMOVER' ? 'removido' :
-          'trabalhado'
-        }`,
-        qualidadeImagem: 'boa' as const,
-        visibilidadeElementos: true,
-        observacoesTecnico: `Foto do local capturada após ${acao.toLowerCase()}`
+    // Enriquecer evidências com metadados específicos APENAS para evidências novas
+    const enrichedEvidences = evidences.map(evidence => {
+      // Se a evidência já tem metadados, mantê-los. Senão, adicionar.
+      if (evidence.metadados) {
+        return evidence;
       }
-    }));
+      
+      return {
+        ...evidence,
+        metadados: {
+          momentoCaptura: 'apos_acao' as const,
+          acaoRelacionada: acaoUpper,
+          stepFluxo: 'local_instalacao',
+          tipoLocal: 'oculto' as const, // Por padrão para equipamentos de segurança
+          descricaoLocal: `Local onde o equipamento foi ${
+            acaoUpper === 'INSTALAR' ? 'instalado/escondido' :
+            acaoUpper === 'REMOVER' ? 'removido' :
+            'trabalhado'
+          }`,
+          qualidadeImagem: 'boa' as const,
+          visibilidadeElementos: true,
+          observacoesTecnico: `Foto do local capturada após ${acao.toLowerCase()}`
+        }
+      };
+    });
     
     setLocalInstalacaoEvidences(enrichedEvidences);
     onEvidenceCapture('local_instalacao', enrichedEvidences);

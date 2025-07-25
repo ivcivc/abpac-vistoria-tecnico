@@ -33,6 +33,17 @@ export interface MediaFile {
   tamanho: number;
   nomeArquivo: string;
   duracao?: number; // Para vídeos, em segundos
+  metadados?: {
+    momentoCaptura?: 'antes_acao' | 'apos_acao' | 'durante_acao';
+    acaoRelacionada?: string;
+    stepFluxo?: string;
+    equipamentoTipo?: string;
+    qualidadeImagem?: 'excelente' | 'boa' | 'regular' | 'ruim';
+    visibilidadeElementos?: boolean;
+    observacoesTecnico?: string;
+    tipoLocal?: 'visivel' | 'oculto' | 'semi_oculto';
+    descricaoLocal?: string;
+  };
 }
 
 interface MediaCaptureProps {
@@ -270,16 +281,30 @@ export function MediaCapture({
 
   // Sincronizar com fotos existentes vindas de props
   useEffect(() => {
+    console.log('📷 MediaCapture: Sincronizando evidências existentes', {
+      fotosExistentes: fotosExistentes.length,
+      fotosAtuais: fotos.length,
+      videosAtuais: videos.length,
+      tipoEvidencia
+    });
+    
     if (fotosExistentes.length > 0) {
       const fotosOnly = fotosExistentes.filter(media => media.tipo === 'foto');
       const videosOnly = fotosExistentes.filter(media => media.tipo === 'video');
+      
+      console.log('📷 MediaCapture: Atualizando para', {
+        novasFotos: fotosOnly.length,
+        novosVideos: videosOnly.length
+      });
+      
       setFotos(fotosOnly);
       setVideos(videosOnly);
     } else {
+      console.log('📷 MediaCapture: Limpando evidências');
       setFotos([]);
       setVideos([]);
     }
-  }, [fotosExistentes]); // Escutar mudanças em fotosExistentes
+  }, [fotosExistentes, tipoEvidencia]); // Escutar mudanças em fotosExistentes e tipoEvidencia
 
   const startCamera = async () => {
     try {
@@ -583,6 +608,15 @@ export function MediaCapture({
       
       // Combinar toda mídia
       const todaMedia = [...novasFotos, ...videos];
+      
+      console.log('📸 MediaCapture: Capturando foto e chamando onCapture', {
+        novaFotoId: novaFoto.id,
+        totalFotos: novasFotos.length,
+        totalVideos: videos.length,
+        totalMedia: todaMedia.length,
+        tipoEvidencia
+      });
+      
       onCapture(todaMedia);
 
       console.log('📸 Foto capturada:', novaFoto.id, `${Math.round(blob.size / 1024)}KB`);
