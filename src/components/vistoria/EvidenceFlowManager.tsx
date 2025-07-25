@@ -52,7 +52,35 @@ export function EvidenceFlowManager({
   const needsSerialPhoto = ['INSTALAR', 'SUBSTITUIR'].includes(acaoUpper);
   const needsLocationPhoto = ['INSTALAR', 'SUBSTITUIR', 'REMOVER', 'MANUTENCAO'].includes(acaoUpper);
 
+  // useEffect para sincronizar com evidências existentes
   useEffect(() => {
+    console.log('🔄 EvidenceFlowManager: Sincronizando com evidências existentes', {
+      existingNumeroSerie: existingEvidences.numero_serie.length,
+      existingLocalInstalacao: existingEvidences.local_instalacao.length,
+      currentNumeroSerie: numeroSerieEvidences.length,
+      currentLocalInstalacao: localInstalacaoEvidences.length
+    });
+    
+    // Apenas atualizar se as evidências existentes mudaram
+    if (existingEvidences.numero_serie.length !== numeroSerieEvidences.length) {
+      console.log('🔄 Atualizando evidências número de série');
+      setNumeroSerieEvidences(existingEvidences.numero_serie);
+    }
+    
+    if (existingEvidences.local_instalacao.length !== localInstalacaoEvidences.length) {
+      console.log('🔄 Atualizando evidências local instalação');
+      setLocalInstalacaoEvidences(existingEvidences.local_instalacao);
+    }
+  }, [existingEvidences.numero_serie, existingEvidences.local_instalacao]);
+
+  useEffect(() => {
+    console.log('🔄 EvidenceFlowManager: useEffect inicial executado', {
+      status,
+      needsSerialPhoto,
+      numeroSerieEvidencesLength: numeroSerieEvidences.length,
+      existingEvidencesNumeroSerie: existingEvidences.numero_serie.length
+    });
+    
     // Determinar step inicial baseado no status e evidências existentes
     if (status === 'CONCLUIDO') {
       setCurrentStep('completed');
@@ -69,47 +97,29 @@ export function EvidenceFlowManager({
       // Para outras ações, ir direto para execução
       setCurrentStep('action_execution');
     }
-  }, [status, needsSerialPhoto, numeroSerieEvidences.length]);
+  }, [status, needsSerialPhoto, numeroSerieEvidences.length, existingEvidences.numero_serie.length]);
 
   const handleNumeroSerieCapture = (evidences: MediaFile[]) => {
     console.log('🔄 EvidenceFlowManager: Recebendo evidências do número de série', {
       evidenciasRecebidas: evidences.length,
       evidenciasAtuais: numeroSerieEvidences.length,
+      evidenciasRecebidas_ids: evidences.map(e => e.id),
+      evidenciasAtuais_ids: numeroSerieEvidences.map(e => e.id),
       acao: acaoUpper
     });
     
-    // Enriquecer evidências com metadados específicos APENAS para evidências novas
-    const enrichedEvidences = evidences.map(evidence => {
-      // Se a evidência já tem metadados, mantê-los. Senão, adicionar.
-      if (evidence.metadados) {
-        console.log('🔄 Evidência já tem metadados:', evidence.id);
-        return evidence;
-      }
-      
-      console.log('🔄 Adicionando metadados à evidência:', evidence.id);
-      return {
-        ...evidence,
-        metadados: {
-          momentoCaptura: 'antes_acao' as const,
-          acaoRelacionada: acaoUpper,
-          stepFluxo: 'numero_serie',
-          equipamentoTipo: 'Localizador/Bloqueador', // Pode ser dinâmico baseado no item
-          qualidadeImagem: 'boa' as const, // Por padrão, pode ser avaliado futuramente
-          visibilidadeElementos: true,
-          observacoesTecnico: `Foto do número de série capturada antes de ${acao.toLowerCase()}`
-        }
-      };
-    });
+    // CORREÇÃO: Usar as evidências como vêm do MediaCapture sem modificar demais
+    // O MediaCapture já envia todas as evidências (antigas + novas)
+    setNumeroSerieEvidences(evidences);
+    onEvidenceCapture('numero_serie', evidences);
     
-    console.log('🔄 EvidenceFlowManager: Atualizando estado com evidências enriquecidas', {
-      evidenciasEnriquecidas: enrichedEvidences.length
+    console.log('🔄 EvidenceFlowManager: Estado atualizado', {
+      novoEstado: evidences.length,
+      evidencesIds: evidences.map(e => e.id)
     });
-    
-    setNumeroSerieEvidences(enrichedEvidences);
-    onEvidenceCapture('numero_serie', enrichedEvidences);
     
     // Apenas marcar como completo se tiver evidências suficientes, mas não avançar automaticamente
-    if (enrichedEvidences.length > 0) {
+    if (evidences.length > 0) {
       setCompletedSteps(prev => new Set([...prev, 'numero_serie']));
     }
   };
@@ -132,37 +142,24 @@ export function EvidenceFlowManager({
   };
 
   const handleLocalInstalacaoCapture = (evidences: MediaFile[]) => {
-    // Enriquecer evidências com metadados específicos APENAS para evidências novas
-    const enrichedEvidences = evidences.map(evidence => {
-      // Se a evidência já tem metadados, mantê-los. Senão, adicionar.
-      if (evidence.metadados) {
-        return evidence;
-      }
-      
-      return {
-        ...evidence,
-        metadados: {
-          momentoCaptura: 'apos_acao' as const,
-          acaoRelacionada: acaoUpper,
-          stepFluxo: 'local_instalacao',
-          tipoLocal: 'oculto' as const, // Por padrão para equipamentos de segurança
-          descricaoLocal: `Local onde o equipamento foi ${
-            acaoUpper === 'INSTALAR' ? 'instalado/escondido' :
-            acaoUpper === 'REMOVER' ? 'removido' :
-            'trabalhado'
-          }`,
-          qualidadeImagem: 'boa' as const,
-          visibilidadeElementos: true,
-          observacoesTecnico: `Foto do local capturada após ${acao.toLowerCase()}`
-        }
-      };
+    console.log('🔄 EvidenceFlowManager: Recebendo evidências do local de instalação', {
+      evidenciasRecebidas: evidences.length,
+      evidenciasAtuais: localInstalacaoEvidences.length,
+      acao: acaoUpper
     });
     
-    setLocalInstalacaoEvidences(enrichedEvidences);
-    onEvidenceCapture('local_instalacao', enrichedEvidences);
+    // CORREÇÃO: Usar as evidências como vêm do MediaCapture sem modificar demais
+    // O MediaCapture já envia todas as evidências (antigas + novas)
+    setLocalInstalacaoEvidences(evidences);
+    onEvidenceCapture('local_instalacao', evidences);
+    
+    console.log('🔄 EvidenceFlowManager: Estado local instalação atualizado', {
+      novoEstado: evidences.length,
+      evidencesIds: evidences.map(e => e.id)
+    });
     
     // Apenas marcar como completo se tiver evidências suficientes, mas não finalizar automaticamente
-    if (enrichedEvidences.length > 0) {
+    if (evidences.length > 0) {
       setCompletedSteps(prev => new Set([...prev, 'local_instalacao']));
     }
   };
