@@ -335,7 +335,7 @@ export function EvidenceFlowManager({
                tipoEvidencia="numero_serie"
                minFotos={1}
                descricao="Capture quantas fotos/vídeos precisar do número de série do equipamento"
-               fotosExistentes={numeroSerieEvidences}
+               fotosExistentes={numeroSerieEvidences} // Corrigir: passar evidências para permitir captura múltipla
                disabled={false}
              />
              
