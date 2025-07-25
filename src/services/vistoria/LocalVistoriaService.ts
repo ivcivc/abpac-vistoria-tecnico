@@ -19,6 +19,11 @@ export interface VistoriaLocal {
   equipamento?: any; // Objeto completo do equipamento do backend
   nomeEquipamento?: string; // Nome do equipamento para exibição
   itens?: any[]; // Lista de itens da vistoria
+  sincronizada?: boolean; // Status de sincronização com o backend
+  ultimaSincronizacao?: Date; // Data da última sincronização
+  observacoes?: string; // Observações gerais da vistoria
+  dataConclusao?: Date; // Data em que a vistoria foi concluída
+  progresso?: number; // Percentual de progresso da vistoria
 }
 
 interface ServiceResult<T = any> {

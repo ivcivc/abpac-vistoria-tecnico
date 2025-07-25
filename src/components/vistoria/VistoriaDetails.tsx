@@ -6,10 +6,14 @@ import { VistoriaItemsList } from '@/components/vistoria/VistoriaItemsList';
 import { StatusBadge } from '@/components/vistoria/StatusBadge';
 import { SyncBadge } from '@/components/vistoria/SyncBadge';
 import { ConnectivityIndicator } from '@/components/offline/ConnectivityIndicator';
+import { VistoriaCompletionFlow } from '@/components/vistoria/VistoriaCompletionFlow';
+import { CompletionNotification } from '@/components/vistoria/CompletionNotification';
+import { useVistoriaEditLock } from '@/hooks/useEditLock';
 import { LocalVistoriaService, VistoriaLocal } from '@/services/vistoria/LocalVistoriaService';
 import { calculateVistoriaProgress } from '@/utils/progressCalculation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { 
   MapPin, 
@@ -23,7 +27,10 @@ import {
   Save,
   CheckCircle,
   Pause,
-  Play
+  Play,
+  Settings,
+  Bell,
+  X
 } from 'lucide-react';
 
 interface VistoriaDetailsProps {
@@ -47,6 +54,12 @@ export function VistoriaDetails({ vistoriaId }: VistoriaDetailsProps) {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
+  const [showCompletionFlow, setShowCompletionFlow] = useState(false);
+  const [showNotification, setShowNotification] = useState(false);
+  const [isConnected, setIsConnected] = useState(true); // TODO: Integrar com hook de conectividade
+
+  // Hook para bloqueio de edição
+  const editLock = useVistoriaEditLock(vistoria);
 
   // Carregar dados da vistoria
   const carregarVistoria = useCallback(async () => {
@@ -139,23 +152,28 @@ export function VistoriaDetails({ vistoriaId }: VistoriaDetailsProps) {
     }
   };
 
-  // Concluir vistoria
-  const handleConcluir = async () => {
+  // Concluir vistoria - agora abre o fluxo de conclusão
+  const handleConcluir = () => {
     if (!vistoria) return;
+    
+    console.log('🎯 [VISTORIA-DETAILS] Iniciando fluxo de conclusão');
+    setShowCompletionFlow(true);
+  };
 
-    try {
-      setSaving(true);
-      
-      // Atualizar status para concluída
-      await handleUpdateStatus('concluida');
-      
-      // TODO: Implementar lógica de conclusão (validações, sincronização, etc.)
-      console.log('🎉 Vistoria concluída:', vistoria.id);
-    } catch (err) {
-      console.error('❌ Erro ao concluir vistoria:', err);
-    } finally {
-      setSaving(false);
-    }
+  // Callback quando vistoria é atualizada no fluxo de conclusão
+  const handleVistoriaUpdated = (vistoriaAtualizada: VistoriaLocal) => {
+    console.log('✅ [VISTORIA-DETAILS] Vistoria atualizada:', vistoriaAtualizada);
+    setVistoria(vistoriaAtualizada);
+    setShowCompletionFlow(false);
+    setShowNotification(true);
+    setLastUpdate(new Date());
+  };
+
+  // Callback para sincronização
+  const handleSync = async () => {
+    console.log('📤 [VISTORIA-DETAILS] Iniciando sincronização...');
+    // TODO: Implementar sincronização real
+    alert('Funcionalidade de sincronização será implementada na próxima versão');
   };
 
   if (loading) {
@@ -200,8 +218,29 @@ export function VistoriaDetails({ vistoriaId }: VistoriaDetailsProps) {
     );
   }
 
+  // Se está no fluxo de conclusão, mostrar apenas o fluxo
+  if (showCompletionFlow && vistoria) {
+    return (
+      <VistoriaCompletionFlow
+        vistoria={vistoria}
+        onVistoriaUpdated={handleVistoriaUpdated}
+        onCancel={() => setShowCompletionFlow(false)}
+      />
+    );
+  }
+
   return (
     <div className="space-y-6">
+      {/* Notificação de conclusão */}
+      {showNotification && vistoria && (
+        <CompletionNotification
+          vistoria={vistoria}
+          onDismiss={() => setShowNotification(false)}
+          onSync={handleSync}
+          isConnected={isConnected}
+        />
+      )}
+
       {/* Header com informações principais */}
       <Card>
         <CardHeader>
@@ -215,8 +254,19 @@ export function VistoriaDetails({ vistoriaId }: VistoriaDetailsProps) {
                 vistoria.status === 'em_andamento' ? 'em_andamento' :
                 vistoria.status === 'concluida' ? 'concluida' : 'pendente'
               } />
-              <SyncBadge isSynced={true} isSyncing={false} showText={false} />
+              <SyncBadge isSynced={vistoria.sincronizada || false} isSyncing={false} showText={false} />
               <ConnectivityIndicator showDetails={false} />
+              
+              {/* Indicador de bloqueio de edição */}
+              {editLock.isLocked && (
+                <Badge 
+                  variant={editLock.canEdit ? 'secondary' : 'destructive'}
+                  className="text-xs"
+                  title={editLock.reason || 'Edição bloqueada'}
+                >
+                  {editLock.canEdit ? '⚠️ Aviso' : '🔒 Bloqueado'}
+                </Badge>
+              )}
             </div>
           </div>
         </CardHeader>
