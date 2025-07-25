@@ -59,6 +59,33 @@ export interface Evidencia {
     longitude: number;
     precisao: number;
   };
+  // Metadados específicos para categorização e contexto
+  metadados?: {
+    // Contexto de captura
+    momentoCaptura: 'antes_acao' | 'durante_acao' | 'apos_acao' | 'outro';
+    acaoRelacionada: string; // INSTALAR, SUBSTITUIR, REMOVER, etc.
+    stepFluxo?: 'numero_serie' | 'action_execution' | 'local_instalacao';
+    
+    // Informações específicas para número de série
+    numeroSerieCapturado?: string; // Número de série visível na foto
+    equipamentoTipo?: string; // Tipo do equipamento
+    
+    // Informações específicas para local de instalação
+    tipoLocal?: 'interno' | 'externo' | 'oculto' | 'visivel';
+    descricaoLocal?: string; // Descrição específica do local
+    pontoReferencia?: string; // Ponto de referência próximo
+    
+    // Informações técnicas
+    resolucao?: { width: number; height: number };
+    compressao?: number; // Percentual de compressão aplicada
+    
+    // Validação e qualidade
+    qualidadeImagem?: 'excelente' | 'boa' | 'regular' | 'ruim';
+    visibilidadeElementos?: boolean; // Se os elementos importantes estão visíveis
+    
+    // Observações do técnico
+    observacoesTecnico?: string;
+  };
 }
 
 export interface Despesa {

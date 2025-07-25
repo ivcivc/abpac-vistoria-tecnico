@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { StatusBadge } from './StatusBadge';
 import { MediaCapture, MediaFile } from '@/components/media/MediaCapture';
+import { EvidenceFlowManager } from './EvidenceFlowManager';
 import { 
   Save, 
   CheckCircle, 
@@ -472,78 +473,57 @@ export function ItemDetail({ item, readOnly, onUpdate }: ItemDetailProps) {
         </CardContent>
       </Card>
 
-      {/* EVIDÊNCIAS FOTOGRÁFICAS */}
+      {/* FLUXO DE EVIDÊNCIAS ESPECÍFICAS */}
+      <EvidenceFlowManager
+        acao={itemData.acao || 'INSTALAR'}
+        status={itemData.status_item || itemData.status || 'PENDENTE'}
+        onEvidenceCapture={(evidenceType, evidences) => {
+          console.log(`📸 Evidências ${evidenceType} capturadas:`, evidences);
+          
+          if (evidenceType === 'numero_serie') {
+            setFotosNumeroSerie(evidences);
+          } else if (evidenceType === 'local_instalacao') {
+            setFotosLocalInstalacao(evidences);
+          } else if (evidenceType === 'outro') {
+            setFotosOutrasEvidencias(evidences);
+          }
+          
+          setHasChanges(true);
+        }}
+        onFlowComplete={() => {
+          console.log('✅ Fluxo de evidências concluído');
+          setHasChanges(true);
+        }}
+        readOnly={readOnly}
+        existingEvidences={{
+          numero_serie: fotosNumeroSerie,
+          local_instalacao: fotosLocalInstalacao,
+          outro: fotosOutrasEvidencias
+        }}
+      />
+
+      {/* OUTRAS EVIDÊNCIAS (OPCIONAL) */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Camera className="w-5 h-5" />
-            Evidências Fotográficas
+            Outras Evidências
+            <Badge className="bg-gray-100 text-gray-800 text-xs">Opcional</Badge>
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Foto do Número de Série */}
-          <div>
-            <h4 className="font-medium mb-3 flex items-center gap-2">
-              <Hash className="w-4 h-4" />
-              Foto do Número de Série
-              <Badge className="bg-blue-100 text-blue-800 text-xs">Obrigatória</Badge>
-            </h4>
-            <MediaCapture
-              onCapture={(fotos: MediaFile[]) => {
-                console.log('📸 Fotos do número de série capturadas:', fotos);
-                setFotosNumeroSerie(fotos);
-                setHasChanges(true);
-              }}
-              tipoEvidencia="numero_serie"
-              minFotos={1}
-              descricao="Foto clara do número de série do equipamento"
-              disabled={readOnly}
-            />
-          </div>
-
-          <Separator />
-
-          {/* Foto do Local de Instalação */}
-          <div>
-            <h4 className="font-medium mb-3 flex items-center gap-2">
-              <MapPin className="w-4 h-4" />
-              Foto do Local de Instalação
-              <Badge className="bg-green-100 text-green-800 text-xs">Obrigatória</Badge>
-            </h4>
-            <MediaCapture
-              onCapture={(fotos: MediaFile[]) => {
-                console.log('📸 Fotos do local de instalação capturadas:', fotos);
-                setFotosLocalInstalacao(fotos);
-                setHasChanges(true);
-              }}
-              tipoEvidencia="local_instalacao"
-              minFotos={1}
-              descricao="Foto do local onde o equipamento foi instalado/escondido"
-              disabled={readOnly}
-            />
-          </div>
-
-          <Separator />
-
-          {/* Outras Evidências */}
-          <div>
-            <h4 className="font-medium mb-3 flex items-center gap-2">
-              <Camera className="w-4 h-4" />
-              Outras Evidências
-              <Badge className="bg-gray-100 text-gray-800 text-xs">Opcional</Badge>
-            </h4>
-            <MediaCapture
-              onCapture={(fotos: MediaFile[]) => {
-                console.log('📸 Outras evidências capturadas:', fotos);
-                setFotosOutrasEvidencias(fotos);
-                setHasChanges(true);
-              }}
-              tipoEvidencia="outro"
-              minFotos={0}
-              descricao="Fotos adicionais relevantes para a vistoria"
-              disabled={readOnly}
-            />
-          </div>
+        <CardContent>
+          <MediaCapture
+            onCapture={(fotos: MediaFile[]) => {
+              console.log('📸 Outras evidências capturadas:', fotos);
+              setFotosOutrasEvidencias(fotos);
+              setHasChanges(true);
+            }}
+            tipoEvidencia="outro"
+            minFotos={0}
+            descricao="Fotos adicionais relevantes para a vistoria"
+            disabled={readOnly}
+            fotosExistentes={fotosOutrasEvidencias}
+          />
         </CardContent>
       </Card>
 
