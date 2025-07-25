@@ -307,14 +307,22 @@ export function EvidenceFlowManager({
               </CardContent>
             </Card>
             
-            <MediaCapture
-              onCapture={handleNumeroSerieCapture}
-              tipoEvidencia="numero_serie"
-              minFotos={1}
-              descricao="Foto clara do número de série do equipamento ANTES da instalação"
-              fotosExistentes={numeroSerieEvidences}
-              disabled={false}
-            />
+                         <MediaCapture
+               onCapture={handleNumeroSerieCapture}
+               tipoEvidencia="numero_serie"
+               minFotos={1}
+               descricao="Capture quantas fotos/vídeos precisar do número de série do equipamento"
+               fotosExistentes={numeroSerieEvidences}
+               disabled={false}
+             />
+             
+             {/* Instrução adicional para captura múltipla */}
+             <div className="bg-blue-100 border border-blue-200 rounded-lg p-3">
+               <p className="text-sm text-blue-800">
+                 💡 <strong>Dica:</strong> Você pode capturar múltiplas fotos e vídeos do número de série. 
+                 Use diferentes ângulos para garantir que o número esteja bem visível.
+               </p>
+             </div>
 
             {/* Botão para prosseguir após capturar evidências */}
             {numeroSerieEvidences.length > 0 && (
@@ -400,18 +408,26 @@ export function EvidenceFlowManager({
               </CardContent>
             </Card>
             
-            <MediaCapture
-              onCapture={handleLocalInstalacaoCapture}
-              tipoEvidencia="local_instalacao"
-              minFotos={1}
-              descricao={`Foto do local onde o equipamento foi ${
-                acaoUpper === 'INSTALAR' ? 'instalado/escondido' :
-                acaoUpper === 'REMOVER' ? 'removido' :
-                'trabalhado'
-              }`}
-              fotosExistentes={localInstalacaoEvidences}
-              disabled={false}
-            />
+                         <MediaCapture
+               onCapture={handleLocalInstalacaoCapture}
+               tipoEvidencia="local_instalacao"
+               minFotos={1}
+               descricao={`Capture quantas fotos/vídeos precisar do local onde o equipamento foi ${
+                 acaoUpper === 'INSTALAR' ? 'instalado/escondido' :
+                 acaoUpper === 'REMOVER' ? 'removido' :
+                 'trabalhado'
+               }`}
+               fotosExistentes={localInstalacaoEvidences}
+               disabled={false}
+             />
+             
+             {/* Instrução adicional para captura múltipla */}
+             <div className="bg-green-100 border border-green-200 rounded-lg p-3">
+               <p className="text-sm text-green-800">
+                 💡 <strong>Dica:</strong> Capture diferentes ângulos do local e pontos de referência 
+                 para facilitar a localização futura do equipamento.
+               </p>
+             </div>
 
             {/* Botão para finalizar o fluxo após capturar evidências */}
             {localInstalacaoEvidences.length > 0 && (

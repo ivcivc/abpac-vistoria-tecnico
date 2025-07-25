@@ -268,7 +268,7 @@ export function MediaCapture({
     // A dependência de 'stream' previne múltiplas chamadas caso o stream já tenha sido obtido.
   }, [shouldRenderVideo, stream]);
 
-  // Inicializar mídia apenas uma vez - SEM useEffect que causa loop
+  // Sincronizar com fotos existentes vindas de props
   useEffect(() => {
     if (fotosExistentes.length > 0) {
       const fotosOnly = fotosExistentes.filter(media => media.tipo === 'foto');
@@ -279,7 +279,7 @@ export function MediaCapture({
       setFotos([]);
       setVideos([]);
     }
-  }, []); // SEM dependências para evitar loop
+  }, [fotosExistentes]); // Escutar mudanças em fotosExistentes
 
   const startCamera = async () => {
     try {
