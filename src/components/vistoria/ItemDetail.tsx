@@ -10,7 +10,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { StatusBadge } from './StatusBadge';
 import { MediaCapture, MediaFile } from '@/components/media/MediaCapture';
-import { EvidenceFlowManager } from './EvidenceFlowManager';
 import { 
   Save, 
   CheckCircle, 
@@ -341,21 +340,50 @@ export function ItemDetail({ item, readOnly, onUpdate }: ItemDetailProps) {
               {validationErrors.local_instalacao_executado && (
                 <p className="text-sm text-red-600">{validationErrors.local_instalacao_executado}</p>
               )}
-              <p className="text-xs text-gray-500">
-                📸 <strong>IMPORTANTE:</strong> Tire foto do equipamento e do local onde foi instalado/escondido
-              </p>
-            </div>
-          )}
+                             <p className="text-xs text-gray-500">
+                 📸 <strong>IMPORTANTE:</strong> Tire foto do equipamento e do local onde foi instalado/escondido
+               </p>
+               
+               {/* Captura de foto do local de instalação - logo após o campo */}
+               <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+                 <div className="mb-3">
+                   <h4 className="text-sm font-medium text-green-900 flex items-center gap-2">
+                     <Camera className="w-4 h-4" />
+                     Foto do Local de Instalação
+                   </h4>
+                   <p className="text-xs text-green-700 mt-1">
+                     Capture uma ou mais fotos do local onde o equipamento foi instalado/escondido
+                   </p>
+                 </div>
+                 <MediaCapture
+                   onCapture={(evidences) => {
+                     console.log('📸 Captura do local de instalação:', evidences);
+                     setFotosLocalInstalacao(evidences);
+                     setHasChanges(true);
+                   }}
+                   tipoEvidencia="local_instalacao"
+                   minFotos={1}
+                   descricao={`Capture quantas fotos/vídeos precisar do local onde o equipamento foi ${
+                     acao === 'INSTALAR' ? 'instalado/escondido' :
+                     acao === 'REMOVER' ? 'removido' :
+                     'trabalhado'
+                   }`}
+                   fotosExistentes={fotosLocalInstalacao}
+                   disabled={false}
+                 />
+               </div>
+             </div>
+           )}
 
-          {/* Modo somente leitura */}
-          {readOnly && itemData.local_instalacao_executado && (
-            <div>
-              <Label>Local de Instalação Executado</Label>
-              <p className="text-sm font-medium bg-gray-50 p-2 rounded border">
-                {itemData.local_instalacao_executado}
-              </p>
-            </div>
-          )}
+           {/* Modo somente leitura */}
+           {readOnly && itemData.local_instalacao_executado && (
+             <div>
+               <Label>Local de Instalação Executado</Label>
+               <p className="text-sm font-medium bg-gray-50 p-2 rounded border">
+                 {itemData.local_instalacao_executado}
+               </p>
+             </div>
+           )}
         </CardContent>
       </Card>
 
@@ -414,9 +442,31 @@ export function ItemDetail({ item, readOnly, onUpdate }: ItemDetailProps) {
               {validationErrors.numero_serie_executado && (
                 <p className="text-sm text-red-600">{validationErrors.numero_serie_executado}</p>
               )}
-              <p className="text-xs text-gray-500">
-                📸 <strong>IMPORTANTE:</strong> Tire foto do número de série do equipamento
-              </p>
+              
+              {/* Captura de foto do número de série - logo após o campo */}
+              <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="mb-3">
+                  <h4 className="text-sm font-medium text-blue-900 flex items-center gap-2">
+                    <Camera className="w-4 h-4" />
+                    Foto do Número de Série
+                  </h4>
+                  <p className="text-xs text-blue-700 mt-1">
+                    Capture uma ou mais fotos claras do número de série digitado acima
+                  </p>
+                </div>
+                <MediaCapture
+                  onCapture={(evidences) => {
+                    console.log('📸 Captura de número de série:', evidences);
+                    setFotosNumeroSerie(evidences);
+                    setHasChanges(true);
+                  }}
+                  tipoEvidencia="numero_serie"
+                  minFotos={1}
+                  descricao="Capture quantas fotos/vídeos precisar do número de série do equipamento"
+                  fotosExistentes={fotosNumeroSerie}
+                  disabled={false}
+                />
+              </div>
             </div>
           )}
 
@@ -449,83 +499,57 @@ export function ItemDetail({ item, readOnly, onUpdate }: ItemDetailProps) {
               </p>
             </div>
           ) : (
-            <div className="space-y-2">
-              <Label htmlFor="observacoes_tecnico">
-                Suas Considerações (Dificuldades, Detalhes Relevantes) *
-              </Label>
-              <textarea
-                id="observacoes_tecnico"
-                value={itemData.observacoes_tecnico || ''}
-                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => handleFieldChange('observacoes_tecnico', e.target.value)}
-                placeholder="Descreva dificuldades encontradas, detalhes importantes, condições do veículo, etc..."
-                rows={4}
-                className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${validationErrors.observacoes_tecnico ? 'border-red-500' : ''}`}
-                maxLength={500}
-              />
-              {validationErrors.observacoes_tecnico && (
-                <p className="text-sm text-red-600">{validationErrors.observacoes_tecnico}</p>
-              )}
-              <p className="text-xs text-gray-500">
-                Obrigatório. Registre suas considerações sobre a execução. Máx: 500 caracteres.
-              </p>
-            </div>
+                                  <div className="space-y-2">
+             <Label htmlFor="observacoes_tecnico">
+               Suas Considerações (Dificuldades, Detalhes Relevantes) *
+             </Label>
+             <textarea
+               id="observacoes_tecnico"
+               value={itemData.observacoes_tecnico || ''}
+               onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => handleFieldChange('observacoes_tecnico', e.target.value)}
+               placeholder="Descreva dificuldades encontradas, detalhes importantes, condições do veículo, etc..."
+               rows={4}
+               className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${validationErrors.observacoes_tecnico ? 'border-red-500' : ''}`}
+               maxLength={500}
+             />
+             {validationErrors.observacoes_tecnico && (
+               <p className="text-sm text-red-600">{validationErrors.observacoes_tecnico}</p>
+             )}
+             <p className="text-xs text-gray-500">
+               Obrigatório. Registre suas considerações sobre a execução. Máx: 500 caracteres.
+             </p>
+             
+             {/* Outras evidências opcionais - logo após as observações */}
+             <div className="mt-6 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+               <div className="mb-3">
+                 <h4 className="text-sm font-medium text-gray-900 flex items-center gap-2">
+                   <Camera className="w-4 h-4" />
+                   Outras Evidências
+                   <Badge className="bg-gray-100 text-gray-800 text-xs">Opcional</Badge>
+                 </h4>
+                 <p className="text-xs text-gray-700 mt-1">
+                   Capture fotos/vídeos adicionais relevantes para a vistoria
+                 </p>
+               </div>
+               <MediaCapture
+                 onCapture={(evidences) => {
+                   console.log('📸 Outras evidências capturadas:', evidences);
+                   setFotosOutrasEvidencias(evidences);
+                   setHasChanges(true);
+                 }}
+                 tipoEvidencia="outro"
+                 minFotos={0}
+                 descricao="Fotos adicionais relevantes para a vistoria"
+                 fotosExistentes={fotosOutrasEvidencias}
+                 disabled={false}
+               />
+             </div>
+           </div>
           )}
         </CardContent>
       </Card>
 
-      {/* FLUXO DE EVIDÊNCIAS ESPECÍFICAS */}
-      <EvidenceFlowManager
-        acao={itemData.acao || 'INSTALAR'}
-        status={itemData.status_item || itemData.status || 'PENDENTE'}
-        onEvidenceCapture={(evidenceType, evidences) => {
-          console.log(`📸 Evidências ${evidenceType} capturadas:`, evidences);
-          
-          if (evidenceType === 'numero_serie') {
-            setFotosNumeroSerie(evidences);
-          } else if (evidenceType === 'local_instalacao') {
-            setFotosLocalInstalacao(evidences);
-          } else if (evidenceType === 'outro') {
-            setFotosOutrasEvidencias(evidences);
-          }
-          
-          setHasChanges(true);
-        }}
-        onFlowComplete={() => {
-          console.log('✅ Fluxo de evidências concluído');
-          setHasChanges(true);
-        }}
-        readOnly={readOnly}
-        existingEvidences={{
-          numero_serie: fotosNumeroSerie,
-          local_instalacao: fotosLocalInstalacao,
-          outro: fotosOutrasEvidencias
-        }}
-      />
-
-      {/* OUTRAS EVIDÊNCIAS (OPCIONAL) */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Camera className="w-5 h-5" />
-            Outras Evidências
-            <Badge className="bg-gray-100 text-gray-800 text-xs">Opcional</Badge>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <MediaCapture
-            onCapture={(fotos: MediaFile[]) => {
-              console.log('📸 Outras evidências capturadas:', fotos);
-              setFotosOutrasEvidencias(fotos);
-              setHasChanges(true);
-            }}
-            tipoEvidencia="outro"
-            minFotos={0}
-            descricao="Fotos adicionais relevantes para a vistoria"
-            disabled={readOnly}
-            fotosExistentes={fotosOutrasEvidencias}
-          />
-        </CardContent>
-      </Card>
+      
 
       {/* BOTÕES DE AÇÃO */}
       {!readOnly && (
