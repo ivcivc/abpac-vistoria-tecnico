@@ -89,8 +89,14 @@ export function EvidenceFlowManager({
     setNumeroSerieEvidences(enrichedEvidences);
     onEvidenceCapture('numero_serie', enrichedEvidences);
     
+    // Apenas marcar como completo se tiver evidências suficientes, mas não avançar automaticamente
     if (enrichedEvidences.length > 0) {
       setCompletedSteps(prev => new Set([...prev, 'numero_serie']));
+    }
+  };
+
+  const handleAdvanceFromNumeroSerie = () => {
+    if (numeroSerieEvidences.length > 0) {
       setCurrentStep('action_execution');
     }
   };
@@ -129,8 +135,14 @@ export function EvidenceFlowManager({
     setLocalInstalacaoEvidences(enrichedEvidences);
     onEvidenceCapture('local_instalacao', enrichedEvidences);
     
+    // Apenas marcar como completo se tiver evidências suficientes, mas não finalizar automaticamente
     if (enrichedEvidences.length > 0) {
       setCompletedSteps(prev => new Set([...prev, 'local_instalacao']));
+    }
+  };
+
+  const handleCompleteFlow = () => {
+    if (localInstalacaoEvidences.length > 0) {
       setCurrentStep('completed');
       onFlowComplete();
     }
@@ -287,8 +299,8 @@ export function EvidenceFlowManager({
                       Antes de {acao.toLowerCase()}:
                     </p>
                     <p className="text-sm text-blue-800 mt-1">
-                      Capture uma foto clara do número de série do equipamento.
-                      Esta evidência é obrigatória para prosseguir com a instalação.
+                      Capture uma ou mais fotos claras do número de série do equipamento.
+                      Você pode capturar múltiplas fotos/vídeos antes de prosseguir.
                     </p>
                   </div>
                 </div>
@@ -303,6 +315,32 @@ export function EvidenceFlowManager({
               fotosExistentes={numeroSerieEvidences}
               disabled={false}
             />
+
+            {/* Botão para prosseguir após capturar evidências */}
+            {numeroSerieEvidences.length > 0 && (
+              <Card className="border-green-200 bg-green-50">
+                <CardContent className="pt-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle className="w-5 h-5 text-green-600" />
+                      <span className="text-green-800 font-medium">
+                        {numeroSerieEvidences.length} evidência(s) capturada(s)
+                      </span>
+                    </div>
+                    <Button 
+                      onClick={handleAdvanceFromNumeroSerie}
+                      className="bg-green-600 hover:bg-green-700"
+                    >
+                      Prosseguir para Execução
+                      <ArrowRight className="w-4 h-4 ml-2" />
+                    </Button>
+                  </div>
+                  <p className="text-sm text-green-700 mt-2">
+                    Você pode capturar mais evidências ou prosseguir para o próximo passo.
+                  </p>
+                </CardContent>
+              </Card>
+            )}
           </div>
         )}
 
@@ -351,11 +389,11 @@ export function EvidenceFlowManager({
                       Após {acao.toLowerCase()}:
                     </p>
                     <p className="text-sm text-green-800 mt-1">
-                      Capture uma foto do local onde o equipamento foi 
+                      Capture uma ou mais fotos do local onde o equipamento foi 
                       {acaoUpper === 'INSTALAR' ? ' instalado/escondido' : 
                        acaoUpper === 'REMOVER' ? ' removido' : 
                        ' trabalhado'}.
-                      Esta evidência é obrigatória para concluir o item.
+                      Você pode capturar múltiplas evidências antes de finalizar.
                     </p>
                   </div>
                 </div>
@@ -374,6 +412,32 @@ export function EvidenceFlowManager({
               fotosExistentes={localInstalacaoEvidences}
               disabled={false}
             />
+
+            {/* Botão para finalizar o fluxo após capturar evidências */}
+            {localInstalacaoEvidences.length > 0 && (
+              <Card className="border-blue-200 bg-blue-50">
+                <CardContent className="pt-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle className="w-5 h-5 text-blue-600" />
+                      <span className="text-blue-800 font-medium">
+                        {localInstalacaoEvidences.length} evidência(s) capturada(s)
+                      </span>
+                    </div>
+                    <Button 
+                      onClick={handleCompleteFlow}
+                      className="bg-blue-600 hover:bg-blue-700"
+                    >
+                      <CheckCircle className="w-4 h-4 mr-2" />
+                      Finalizar Fluxo de Evidências
+                    </Button>
+                  </div>
+                  <p className="text-sm text-blue-700 mt-2">
+                    Você pode capturar mais evidências ou finalizar o fluxo de evidências obrigatórias.
+                  </p>
+                </CardContent>
+              </Card>
+            )}
           </div>
         )}
 
