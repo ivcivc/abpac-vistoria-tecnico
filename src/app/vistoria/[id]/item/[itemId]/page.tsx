@@ -8,6 +8,7 @@ import { VistoriaItem } from '@/types/storage';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, AlertTriangle, RefreshCw } from 'lucide-react';
+import { AuthProvider } from '@/contexts/AuthContext';
 
 export default function ItemDetailPage() {
   const router = useRouter();
@@ -149,6 +150,17 @@ export default function ItemDetailPage() {
     );
   }
 
+  // Criar um objeto de autenticação simulado para o componente ItemDetail
+  const mockAuthData = {
+    token: vistoria.token || "token-simulado-para-teste",
+    isAuthenticated: true,
+    technicianName: vistoria.tecnicoNome || "Técnico",
+    loading: false,
+    error: null,
+    initialized: true,
+    currentVistoria: vistoria
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -180,11 +192,13 @@ export default function ItemDetailPage() {
 
       {/* Content */}
       <div className="max-w-4xl mx-auto p-4">
-        <ItemDetail
-          item={item}
-          readOnly={false}
-          onUpdate={handleItemUpdate}
-        />
+        <AuthProvider>
+          <ItemDetail
+            item={item}
+            readOnly={false}
+            onUpdate={handleItemUpdate}
+          />
+        </AuthProvider>
       </div>
     </div>
   );
