@@ -89,6 +89,9 @@ export class UploadService {
         // Listener de conclusão
         xhr.addEventListener('load', () => {
           try {
+            console.log('📋 UploadService: Status da resposta:', xhr.status);
+            console.log('📋 UploadService: Texto da resposta:', xhr.responseText);
+            
             if (xhr.status === 200) {
               const response = JSON.parse(xhr.responseText);
               
@@ -106,10 +109,20 @@ export class UploadService {
                 });
               }
             } else {
-              console.error('❌ UploadService: Status HTTP inválido', xhr.status);
+              // Tentar parsear resposta de erro
+              let errorMessage = `Erro HTTP ${xhr.status}: ${xhr.statusText}`;
+              try {
+                const errorResponse = JSON.parse(xhr.responseText);
+                errorMessage = errorResponse.message || errorMessage;
+                console.log('📋 UploadService: Resposta de erro parseada:', errorResponse);
+              } catch (e) {
+                console.log('📋 UploadService: Não foi possível parsear resposta de erro');
+              }
+              
+              console.error('❌ UploadService: Status HTTP inválido', xhr.status, errorMessage);
               resolve({
                 success: false,
-                error: `Erro HTTP ${xhr.status}: ${xhr.statusText}`
+                error: errorMessage
               });
             }
           } catch (error) {
@@ -141,7 +154,7 @@ export class UploadService {
         
         // Configurar requisição
         xhr.timeout = 60000; // 60 segundos
-        xhr.open('POST', `${this.API_BASE_URL}/api/upload`);
+        xhr.open('POST', `${this.API_BASE_URL}/api/upload-simple`);
         
         // Headers necessários são automaticamente definidos pelo FormData
         
