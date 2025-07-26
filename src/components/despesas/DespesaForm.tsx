@@ -7,7 +7,10 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { MediaCapture, MediaFile } from '@/components/media/MediaCapture';
+import { SimpleMediaCapture } from '@/components/media/SimpleMediaCapture';
 import { Despesa } from '@/types/storage';
+import { DespesaService } from '@/services/despesas/DespesaService';
+import { useAuth } from '@/contexts/AuthContext';
 import { 
   DollarSign,
   Receipt, 
@@ -17,7 +20,8 @@ import {
   Save,
   Plus,
   AlertCircle,
-  CheckCircle
+  CheckCircle,
+  Loader2
 } from 'lucide-react';
 
 interface DespesaFormProps {
@@ -52,6 +56,11 @@ export function DespesaForm({
   const [comprovantes, setComprovantes] = useState<MediaFile[]>([]);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [hasChanges, setHasChanges] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  
+  // Obter contexto de autenticação
+  const { token } = useAuth();
 
   // Função para formatar valor monetário
   function formatCurrency(value: number): string {
@@ -134,24 +143,62 @@ export function DespesaForm({
   };
 
   // Manipular salvamento
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!validateForm()) {
       return;
     }
 
-    const numericValue = parseCurrency(valor);
+    setIsSubmitting(true);
+    setSubmitError(null);
 
-    const novaDespesa: Omit<Despesa, 'id'> = {
-      itemId,
-      vistoriaId,
-      tipo,
-      valor: numericValue,
-      descricao: descricao.trim(),
-      timestamp: new Date(),
-      comprovante: comprovantes.length > 0 ? convertToEvidencia(comprovantes[0]) : undefined
-    };
+    try {
+      const numericValue = parseCurrency(valor);
 
-    onSave(novaDespesa);
+      const novaDespesa: Omit<Despesa, 'id'> = {
+        itemId,
+        vistoriaId,
+        tipo,
+        valor: numericValue,
+        descricao: descricao.trim(),
+        timestamp: new Date(),
+        comprovante: comprovantes.length > 0 ? convertToEvidencia(comprovantes[0]) : undefined
+      };
+
+      // Se tivermos token, enviar para o backend
+      if (token) {
+        console.log('📤 DespesaForm: Enviando despesa para o backend');
+        const result = await DespesaService.adicionarDespesa(
+          vistoriaId,
+          novaDespesa,
+          token
+        );
+
+        if (!result.success) {
+          throw new Error(result.error || 'Erro ao salvar despesa no servidor');
+        }
+
+        console.log('✅ DespesaForm: Despesa salva no backend com sucesso', result);
+        
+        // Se o backend retornou um ID, usar ele
+        if (result.despesa?.id) {
+          const despesaCompleta = {
+            ...novaDespesa,
+            id: `despesa_${result.despesa.id}`
+          };
+          
+          onSave(despesaCompleta);
+          return;
+        }
+      }
+
+      // Fallback para salvar localmente se não tiver token ou se falhar
+      onSave(novaDespesa);
+    } catch (error) {
+      console.error('❌ DespesaForm: Erro ao salvar despesa', error);
+      setSubmitError(error instanceof Error ? error.message : 'Erro ao salvar despesa');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // Converter MediaFile para Evidencia
@@ -217,7 +264,7 @@ export function DespesaForm({
                   setTipo(opcao.value);
                   handleFieldChange('tipo', opcao.value);
                 }}
-                disabled={readOnly}
+                disabled={readOnly || isSubmitting}
               >
                 <span className="text-lg">{opcao.icon}</span>
                 <span className="text-sm font-medium">{opcao.label}</span>
@@ -244,7 +291,7 @@ export function DespesaForm({
               onChange={(e) => handleValorChange(e.target.value)}
               placeholder="Ex: 50,00"
               className={`pl-10 ${validationErrors.valor ? 'border-red-500' : ''}`}
-              disabled={readOnly}
+              disabled={readOnly || isSubmitting}
             />
           </div>
           {validationErrors.valor && (
@@ -274,7 +321,7 @@ export function DespesaForm({
               validationErrors.descricao ? 'border-red-500' : ''
             }`}
             maxLength={200}
-            disabled={readOnly}
+            disabled={readOnly || isSubmitting}
           />
           {validationErrors.descricao && (
             <p className="text-sm text-red-600 flex items-center gap-1">
@@ -302,7 +349,7 @@ export function DespesaForm({
                   Capture a foto da nota fiscal, recibo ou comprovante da despesa
                 </p>
               </div>
-              <MediaCapture
+              <SimpleMediaCapture
                 onCapture={(evidences) => {
                   console.log('📸 Comprovante capturado:', evidences);
                   setComprovantes(evidences);
@@ -312,9 +359,19 @@ export function DespesaForm({
                 minFotos={0}
                 descricao="Capture o comprovante da despesa (nota fiscal, recibo, etc.)"
                 fotosExistentes={comprovantes}
-                disabled={false}
+                disabled={isSubmitting}
               />
             </div>
+          </div>
+        )}
+
+        {/* Mensagem de erro */}
+        {submitError && (
+          <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+            <p className="text-sm text-red-600 flex items-center gap-2">
+              <AlertCircle className="w-4 h-4" />
+              {submitError}
+            </p>
           </div>
         )}
 
@@ -323,17 +380,27 @@ export function DespesaForm({
           <div className="flex gap-3 pt-4 border-t">
             <Button
               onClick={handleSave}
-              disabled={!hasChanges || !isFormValid()}
+              disabled={!hasChanges || !isFormValid() || isSubmitting}
               className="flex-1 bg-green-600 hover:bg-green-700"
             >
-              <Save className="w-4 h-4 mr-2" />
-              {despesa ? 'Atualizar Despesa' : 'Salvar Despesa'}
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Salvando...
+                </>
+              ) : (
+                <>
+                  <Save className="w-4 h-4 mr-2" />
+                  {despesa ? 'Atualizar Despesa' : 'Salvar Despesa'}
+                </>
+              )}
             </Button>
             <Button
               type="button"
               variant="outline"
               onClick={onCancel}
               className="px-6"
+              disabled={isSubmitting}
             >
               Cancelar
             </Button>

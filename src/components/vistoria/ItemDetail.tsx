@@ -14,6 +14,8 @@ import { SimpleMediaCapture } from '@/components/media/SimpleMediaCapture';
 import { DespesaForm } from '@/components/despesas';
 import { Despesa } from '@/types/storage';
 import { UploadService } from '@/services/uploadService';
+import { DespesaService } from '@/services/despesas/DespesaService';
+import { useAuth } from '@/contexts/AuthContext';
 import { 
   Save, 
   CheckCircle, 
@@ -59,6 +61,9 @@ export function ItemDetail({ item, readOnly, onUpdate }: ItemDetailProps) {
   const [despesas, setDespesas] = useState<Despesa[]>(item.despesas || []);
   const [showDespesaForm, setShowDespesaForm] = useState(false);
   const [editingDespesa, setEditingDespesa] = useState<Despesa | undefined>(undefined);
+
+  // Obter token de autenticação
+  const { token } = useAuth();
 
   useEffect(() => {
     setEditedItem(item);
@@ -323,23 +328,61 @@ export function ItemDetail({ item, readOnly, onUpdate }: ItemDetailProps) {
     setShowDespesaForm(true);
   };
 
-  const handleSaveDespesa = (novaDespesa: Omit<Despesa, 'id'>) => {
-    const despesaComId: Despesa = {
-      ...novaDespesa,
-      id: editingDespesa?.id || `despesa_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-    };
+  const handleSaveDespesa = async (novaDespesa: Omit<Despesa, 'id'>) => {
+    try {
+      console.log('🔄 ItemDetail.handleSaveDespesa: Salvando despesa', novaDespesa);
+      
+      let despesaComId: Despesa;
+      
+      // Se temos token, tentar salvar no backend primeiro
+      if (token) {
+        console.log('🔄 ItemDetail.handleSaveDespesa: Enviando para o backend...');
+        const result = await DespesaService.adicionarDespesa(
+          item.vistoriaId,
+          novaDespesa,
+          token
+        );
+        
+        if (result.success && result.despesa) {
+          console.log('✅ ItemDetail.handleSaveDespesa: Salvo no backend com sucesso', result);
+          
+          // Converter do formato do backend para o formato do frontend
+          despesaComId = DespesaService.convertFromBackend(result.despesa);
+          
+          console.log('✅ ItemDetail.handleSaveDespesa: Despesa convertida', despesaComId);
+        } else {
+          console.warn('⚠️ ItemDetail.handleSaveDespesa: Erro no backend, salvando localmente', result.error);
+          // Fallback para salvar localmente
+          despesaComId = {
+            ...novaDespesa,
+            id: editingDespesa?.id || `despesa_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+          };
+        }
+      } else {
+        // Sem token, salvar localmente
+        console.log('🔄 ItemDetail.handleSaveDespesa: Salvando localmente (sem token)');
+        despesaComId = {
+          ...novaDespesa,
+          id: editingDespesa?.id || `despesa_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+        };
+      }
 
-    if (editingDespesa) {
-      // Editando despesa existente
-      setDespesas(prev => prev.map(d => d.id === editingDespesa.id ? despesaComId : d));
-    } else {
-      // Adicionando nova despesa
-      setDespesas(prev => [...prev, despesaComId]);
+      if (editingDespesa) {
+        // Editando despesa existente
+        setDespesas(prev => prev.map(d => d.id === editingDespesa.id ? despesaComId : d));
+      } else {
+        // Adicionando nova despesa
+        setDespesas(prev => [...prev, despesaComId]);
+      }
+
+      setShowDespesaForm(false);
+      setEditingDespesa(undefined);
+      setHasChanges(true);
+      
+    } catch (error) {
+      console.error('❌ ItemDetail.handleSaveDespesa: Erro ao salvar despesa', error);
+      alert('Erro ao salvar despesa. Tente novamente.');
     }
-
-    setShowDespesaForm(false);
-    setEditingDespesa(undefined);
-    setHasChanges(true);
   };
 
   const handleCancelDespesa = () => {
@@ -405,6 +448,35 @@ export function ItemDetail({ item, readOnly, onUpdate }: ItemDetailProps) {
   const itemData = editedItem as any;
   const acao = itemData.acao?.toUpperCase();
   const needsPlannedLocation = ['REMOVER', 'MANUTENCAO', 'SUBSTITUIR'].includes(acao);
+
+  // Carregar despesas do backend quando o item mudar
+  useEffect(() => {
+    const carregarDespesasDoBackend = async () => {
+      if (token && item.vistoriaId) {
+        try {
+          console.log('🔄 ItemDetail: Carregando despesas do backend para o item', item.id);
+          const result = await DespesaService.obterDespesas(item.vistoriaId, token);
+          
+          if (result.success && result.despesas) {
+            // Filtrar apenas despesas deste item
+            const despesasDoItem = result.despesas
+              .filter(d => d.estoque_remessa_item_id === parseInt(item.id))
+              .map(d => DespesaService.convertFromBackend(d));
+              
+            console.log('✅ ItemDetail: Despesas carregadas do backend', despesasDoItem);
+            
+            if (despesasDoItem.length > 0) {
+              setDespesas(despesasDoItem);
+            }
+          }
+        } catch (error) {
+          console.error('❌ ItemDetail: Erro ao carregar despesas do backend', error);
+        }
+      }
+    };
+    
+    carregarDespesasDoBackend();
+  }, [item.id, item.vistoriaId, token]);
 
   return (
     <div className="space-y-6">

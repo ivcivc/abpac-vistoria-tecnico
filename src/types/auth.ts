@@ -15,6 +15,8 @@ export interface AuthContextProps {
   setTechnicianName: (name: string) => void;
   logout: () => void;
   clearError: () => void;
+  // Adicionar acesso direto ao token para facilitar uso em componentes
+  token?: string | null;
 }
 
 export interface TokenValidationResponse {

@@ -270,6 +270,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setTechnicianName,
       logout,
       clearError,
+      token: authState.token, // Adicionar token diretamente no contexto
     }),
     [authState, validateToken, setTechnicianName, logout, clearError]
   );
