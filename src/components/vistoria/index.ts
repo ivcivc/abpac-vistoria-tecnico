@@ -4,4 +4,5 @@ export { ItemDetail } from './ItemDetail';
 export { StatusBadge } from './StatusBadge';
 export { SyncBadge } from './SyncBadge';
 export { VistoriaCompletionFlow } from './VistoriaCompletionFlow';
-export { CompletionNotification } from './CompletionNotification'; 
+export { CompletionNotification } from './CompletionNotification';
+export { ApprovalNotification } from './ApprovalNotification'; 
