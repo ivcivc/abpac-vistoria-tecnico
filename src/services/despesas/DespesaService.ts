@@ -3,7 +3,7 @@
  * Task 17 - Integração com endpoints reais de despesas
  */
 
-import { Despesa } from '@/types/storage';
+import { Despesa, Evidencia } from '@/types/storage';
 import { API_CONFIG, buildApiUrl } from '@/config/api';
 import { UploadService } from '../uploadService';
 
@@ -45,7 +45,7 @@ export class DespesaService {
       });
 
       // Preparar dados para o backend
-      const despesaBackend = {
+      const despesaBackend: Record<string, any> = {
         descricao: despesa.descricao,
         valor: despesa.valor,
         tipo: despesa.tipo,
@@ -103,7 +103,10 @@ export class DespesaService {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.message || 'Erro ao adicionar despesa');
+        if (response.status === 401) {
+          throw new Error('Token de autenticação inválido ou expirado');
+        }
+        throw new Error(data.message || `Erro ${response.status}: ${response.statusText}`);
       }
 
       if (data.type !== true) {
@@ -135,18 +138,22 @@ export class DespesaService {
     try {
       console.log('🔄 DespesaService: Obtendo despesas da vistoria', vistoriaId);
 
+      if (!token) {
+        console.warn('⚠️ DespesaService: Tentativa de obter despesas sem token');
+        return {
+          success: false,
+          error: 'Token de autenticação não fornecido'
+        };
+      }
+
       // Construir URL
       const url = buildApiUrl('/estoque-remessa/:id/despesas', { id: vistoriaId });
 
       // Configurar headers
       const headers: Record<string, string> = {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
       };
-
-      // Adicionar token se disponível
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
 
       // Fazer requisição
       const response = await fetch(url, {
@@ -154,10 +161,19 @@ export class DespesaService {
         headers
       });
 
+      // Verificar erros de autenticação primeiro
+      if (response.status === 401) {
+        console.error('❌ DespesaService: Erro de autenticação (401) ao obter despesas');
+        return {
+          success: false,
+          error: 'Token de autenticação inválido ou expirado'
+        };
+      }
+
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.message || 'Erro ao obter despesas');
+        throw new Error(data.message || `Erro ${response.status}: ${response.statusText}`);
       }
 
       if (data.type !== true) {
@@ -168,7 +184,7 @@ export class DespesaService {
 
       return {
         success: true,
-        despesas: data.data
+        despesas: data.data || []
       };
     } catch (error) {
       console.error('❌ DespesaService: Erro ao obter despesas', error);
@@ -196,7 +212,7 @@ export class DespesaService {
       comprovante: despesaBackend.arquivo_id ? {
         id: `arquivo_${despesaBackend.arquivo_id}`,
         itemId: despesaBackend.estoque_remessa_item_id?.toString() || '',
-        tipo: 'image/jpeg',
+        tipo: 'foto', // Usar 'foto' em vez de 'image/jpeg' para compatibilidade com o tipo Evidencia
         url: `/api/arquivos/${despesaBackend.arquivo_id}`,
         localUrl: `/api/arquivos/${despesaBackend.arquivo_id}`,
         tamanho: 0,
