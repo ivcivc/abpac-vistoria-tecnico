@@ -168,15 +168,25 @@ export function ItemDetail({ item, readOnly, onUpdate }: ItemDetailProps) {
   };
 
   const handleSave = async () => {
+    console.log('🚀 ItemDetail.handleSave: INICIANDO');
+    
     if (!validateItem()) {
+      console.log('❌ ItemDetail.handleSave: Validação falhou');
       return;
     }
 
+    console.log('✅ ItemDetail.handleSave: Validação passou, definindo estados');
     setIsUploading(true);
     setUploadProgress({});
 
     try {
-      console.log('🔄 ItemDetail: Iniciando salvamento com upload de evidências');
+      console.log('🔄 ItemDetail.handleSave: Iniciando salvamento com upload de evidências', {
+        fotosNumeroSerie: fotosNumeroSerie.length,
+        fotosLocalInstalacao: fotosLocalInstalacao.length,
+        fotosOutrasEvidencias: fotosOutrasEvidencias.length
+      });
+
+      console.log('📤 ItemDetail.handleSave: Iniciando uploads em paralelo...');
 
       // Fazer upload das evidências
       const [
@@ -222,9 +232,10 @@ export function ItemDetail({ item, readOnly, onUpdate }: ItemDetailProps) {
               }));
             }
           }) : Promise.resolve([])
-      ]);
+             ]);
 
-      console.log('✅ ItemDetail: Uploads concluídos', {
+      console.log('🎉 ItemDetail.handleSave: Promise.all concluído!');
+      console.log('✅ ItemDetail.handleSave: Uploads concluídos', {
         numeroSerie: numeroSerieUploaded.length,
         localInstalacao: localInstalacaoUploaded.length,
         outras: outrasEvidenciasUploaded.length
@@ -263,7 +274,8 @@ export function ItemDetail({ item, readOnly, onUpdate }: ItemDetailProps) {
       });
 
     } catch (error) {
-      console.error('❌ ItemDetail: Erro durante upload de evidências', error);
+      console.error('💥 ItemDetail.handleSave: ERRO CAPTURADO no catch:', error);
+      console.error('❌ ItemDetail.handleSave: Stack trace:', error instanceof Error ? error.stack : 'Sem stack trace');
       
       // Salvar mesmo com erro de upload (para não perder dados)
       const updatedItem = {
@@ -286,8 +298,10 @@ export function ItemDetail({ item, readOnly, onUpdate }: ItemDetailProps) {
       alert('Erro no upload das evidências, mas os dados foram salvos localmente. As evidências serão enviadas na próxima sincronização.');
       
     } finally {
+      console.log('🏁 ItemDetail.handleSave: FINALLY - Limpando estados');
       setIsUploading(false);
       setUploadProgress({});
+      console.log('✅ ItemDetail.handleSave: Estados limpos, função concluída');
     }
   };
 

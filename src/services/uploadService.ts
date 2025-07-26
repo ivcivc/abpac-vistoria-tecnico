@@ -62,7 +62,7 @@ export class UploadService {
       }
       
       console.log('📤 UploadService: Iniciando upload', {
-        fileName: fileName || file instanceof File ? file.name : 'blob',
+        fileName: fileName || (file instanceof File ? file.name : 'blob'),
         size: file.size,
         type: file.type,
         metadados: { tipo, referencia }
@@ -240,30 +240,61 @@ export class UploadService {
       onFileComplete?: (fileIndex: number, result: UploadResult) => void;
     } = {}
   ): Promise<any[]> {
+    console.log('🚀 UploadService.processMediaFiles: INICIANDO', {
+      quantidadeArquivos: mediaFiles.length,
+      opcoes: options
+    });
+    
     const processedFiles: any[] = [];
     
     for (let i = 0; i < mediaFiles.length; i++) {
       const mediaFile = mediaFiles[i];
       
+      console.log(`📁 UploadService.processMediaFiles: Processando arquivo ${i + 1}/${mediaFiles.length}`, {
+        id: mediaFile.id,
+        nome: mediaFile.nomeArquivo,
+        localUrl: mediaFile.localUrl
+      });
+      
       try {
+        console.log(`🔄 UploadService.processMediaFiles: Fazendo fetch do arquivo ${i + 1}`);
+        
         // Converter URL local para Blob
         const response = await fetch(mediaFile.localUrl);
+        
+        if (!response.ok) {
+          throw new Error(`Fetch falhou: ${response.status} ${response.statusText}`);
+        }
+        
         const blob = await response.blob();
+        
+        console.log(`✅ UploadService.processMediaFiles: Blob criado para arquivo ${i + 1}`, {
+          tamanho: blob.size,
+          tipo: blob.type
+        });
+        
+        console.log(`📤 UploadService.processMediaFiles: Iniciando upload do arquivo ${i + 1}`);
         
         // Fazer upload
         const uploadResult = await this.uploadFile(blob, {
           ...options,
           fileName: mediaFile.nomeArquivo,
-          onProgress: options.onProgress ? (progress) => options.onProgress!(i, progress) : undefined
+          onProgress: options.onProgress ? (progress) => {
+            console.log(`📊 UploadService.processMediaFiles: Progresso arquivo ${i + 1}: ${progress.percentage}%`);
+            options.onProgress!(i, progress);
+          } : undefined
         });
+        
+        console.log(`🎯 UploadService.processMediaFiles: Upload concluído para arquivo ${i + 1}`, uploadResult);
         
         // Converter para formato do backend
         const processedFile = this.mediaFileToBackendFormat(mediaFile, uploadResult);
         
         if (processedFile) {
           processedFiles.push(processedFile);
+          console.log(`✅ UploadService.processMediaFiles: Arquivo ${i + 1} processado com sucesso`);
         } else {
-          console.warn(`⚠️ UploadService: Falha no upload do arquivo ${mediaFile.nomeArquivo}`);
+          console.warn(`⚠️ UploadService.processMediaFiles: Falha no upload do arquivo ${mediaFile.nomeArquivo}`);
         }
         
         if (options.onFileComplete) {
@@ -271,7 +302,7 @@ export class UploadService {
         }
         
       } catch (error) {
-        console.error(`❌ UploadService: Erro ao processar arquivo ${mediaFile.nomeArquivo}`, error);
+        console.error(`❌ UploadService.processMediaFiles: Erro ao processar arquivo ${i + 1} (${mediaFile.nomeArquivo})`, error);
         
         if (options.onFileComplete) {
           options.onFileComplete(i, {
@@ -281,6 +312,11 @@ export class UploadService {
         }
       }
     }
+    
+    console.log('🏁 UploadService.processMediaFiles: FINALIZADO', {
+      totalProcessados: processedFiles.length,
+      totalTentativas: mediaFiles.length
+    });
     
     return processedFiles;
   }
