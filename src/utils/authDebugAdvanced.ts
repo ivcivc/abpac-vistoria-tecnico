@@ -4,6 +4,7 @@
  */
 
 import { AuthService } from '@/services/auth/AuthService';
+import { API_CONFIG } from '@/config/api';
 
 export class AuthDebugAdvanced {
   /**
@@ -171,14 +172,12 @@ export class AuthDebugAdvanced {
   static async testBackendAuth(): Promise<void> {
     console.log('🔗 Testando conectividade específica para autenticação...');
 
-    const testUrls = [
-      'http://192.168.15.4:3333/api/vistoria/test123',
-      'http://localhost:3333/api/vistoria/test123',
-      'http://192.168.15.4:3333/api/vistoria/VIS1234567890ABCDEF',
-      'http://localhost:3333/api/vistoria/VIS1234567890ABCDEF',
+    const TEST_URLS = [
+      `${API_CONFIG.BASE_URL}/vistoria/test123`,
+      `${API_CONFIG.BASE_URL}/vistoria/VIS1234567890ABCDEF`,
     ];
 
-    for (const url of testUrls) {
+    for (const url of TEST_URLS) {
       try {
         console.log(`\n🌐 Testando: ${url}`);
         const startTime = Date.now();

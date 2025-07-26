@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { UploadService } from '@/services/uploadService';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { API_CONFIG } from '@/config/api';
 
 export default function DebugUploadPage() {
   const [file, setFile] = useState<File | null>(null);
@@ -61,7 +62,7 @@ export default function DebugUploadPage() {
   const testBackend = async () => {
     addLog('🔍 Testando backend...');
     try {
-      const response = await fetch('http://localhost:3333/api/upload-simple', {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/upload-simple`, {
         method: 'POST'
       });
       

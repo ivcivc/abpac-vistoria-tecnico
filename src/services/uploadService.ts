@@ -3,6 +3,8 @@
  * Task 16 - Integração com endpoint real /api/upload
  */
 
+import { API_CONFIG } from '@/config/api';
+
 export interface UploadResult {
   success: boolean;
   arquivo?: {
@@ -23,7 +25,8 @@ export interface UploadProgress {
 }
 
 export class UploadService {
-  private static readonly API_BASE_URL = 'http://localhost:3333';
+  // Substituir a URL hardcoded por uma referência à configuração centralizada
+  private static readonly API_BASE_URL = API_CONFIG.BASE_URL.replace('/api', '');
   
   /**
    * Faz upload de um arquivo para o backend

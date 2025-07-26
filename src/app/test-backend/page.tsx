@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { API_CONFIG } from '@/config/api';
 
 export default function TestBackendPage() {
   const [testToken, setTestToken] = useState('VIS1234567890ABCDEF');
@@ -14,7 +15,7 @@ export default function TestBackendPage() {
     setResult(null);
 
     try {
-      const API_BASE = 'http://localhost:3333/api';
+      const API_BASE = API_CONFIG.BASE_URL;
       const endpoint = `${API_BASE}/vistoria/${testToken}`;
 
       console.log('🧪 [TESTE] Testando endpoint REAL do backend:', endpoint);
@@ -56,11 +57,11 @@ export default function TestBackendPage() {
     setResult(null);
 
     try {
-      const API_BASE = 'http://localhost:3333';
+      const API_BASE_NO_API = API_CONFIG.BASE_URL.replace('/api', '');
 
-      console.log('🏥 [HEALTH] Testando conectividade básica:', API_BASE);
+      console.log('🏥 [HEALTH] Testando conectividade básica:', API_BASE_NO_API);
 
-      const response = await fetch(`${API_BASE}/health`, {
+      const response = await fetch(`${API_BASE_NO_API}/health`, {
         method: 'GET',
         headers: {
           Accept: 'application/json',
@@ -74,7 +75,7 @@ export default function TestBackendPage() {
         statusText: response.statusText,
         ok: response.ok,
         data: data,
-        endpoint: `${API_BASE}/health`,
+        endpoint: `${API_BASE_NO_API}/health`,
         method: 'GET',
       });
     } catch (err: any) {

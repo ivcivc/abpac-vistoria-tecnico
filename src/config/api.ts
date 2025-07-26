@@ -5,8 +5,19 @@
  * FRONTEND: Next.js rodando na porta 3000
  */
 
+// Determinar a URL base da API com base no ambiente
+const getApiBaseUrl = () => {
+  // Verificar se estamos em ambiente de produção
+  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
+    // Em produção, usar a URL de produção
+    return 'https://api.abpac.com.br/api';
+  }
+  // Em desenvolvimento, usar localhost
+  return 'http://localhost:3333/api';
+};
+
 export const API_CONFIG = {
-  BASE_URL: 'http://localhost:3333/api',
+  BASE_URL: getApiBaseUrl(),
   ENDPOINTS: {
     // ENDPOINTS REAIS QUE JÁ EXISTEM NO BACKEND:
 

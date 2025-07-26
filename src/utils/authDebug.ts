@@ -3,6 +3,8 @@
  * Sistema de Vistoria ABPAC
  */
 
+import { API_CONFIG } from '@/config/api';
+
 export class AuthDebugUtil {
   /**
    * Limpa todo o estado de autenticação
@@ -142,7 +144,7 @@ export class AuthDebugUtil {
     console.log('🔗 Testando conectividade com backend...');
 
     try {
-      const response = await fetch('http://192.168.15.4:3333/api/vistoria/test123', {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/vistoria/test123`, {
         method: 'GET',
         headers: {
           Accept: 'application/json',

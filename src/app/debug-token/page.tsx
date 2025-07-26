@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { API_CONFIG } from '@/config/api';
 
 export default function DebugTokenPage() {
   const [userToken] = useState('1da66df8d2b911ed2007a7923ae6b79ce8eb6067ad7308453976e5cd3e7427cf');
@@ -14,7 +15,7 @@ export default function DebugTokenPage() {
     setBackendResponse(null);
 
     try {
-      const API_BASE = 'http://localhost:3333/api';
+      const API_BASE = API_CONFIG.BASE_URL;
       const endpoint = `${API_BASE}/vistoria/${userToken}`;
 
       console.log('🔍 [DEBUG] Testando token específico do usuário:', userToken);

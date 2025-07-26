@@ -5,6 +5,7 @@ import { ItemDetail } from '@/components/vistoria/ItemDetail';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { API_CONFIG } from '@/config/api';
 
 export default function TestTask16UploadPage() {
   // Item simulado para teste (usando any para evitar conflitos de tipo em teste)
@@ -93,7 +94,7 @@ export default function TestTask16UploadPage() {
   const testBackendConnection = async () => {
     addLog('🔍 Testando conexão com backend...');
     try {
-      const response = await fetch('http://localhost:3333/api/upload-simple', {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/upload-simple`, {
         method: 'POST'
       });
       

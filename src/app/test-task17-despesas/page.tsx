@@ -17,6 +17,7 @@ import {
   Loader2,
   Key
 } from 'lucide-react';
+import { API_CONFIG } from '@/config/api';
 
 // Criar um contexto de autenticação simplificado para a página de teste
 const TestAuthContext = createContext<{ token: string | null }>({ token: null });
@@ -66,7 +67,7 @@ export default function TestDespesasPage() {
     try {
       // Verificar se o backend está acessível
       try {
-        const healthCheck = await fetch('http://localhost:3333/api/health', {
+        const healthCheck = await fetch(`${API_CONFIG.BASE_URL}/health`, {
           method: 'GET',
           headers: { 'Content-Type': 'application/json' }
         });
@@ -129,7 +130,7 @@ export default function TestDespesasPage() {
     
     try {
       // Construir URL
-      const url = `http://localhost:3333/api/estoque-remessa/${vistoriaId}/despesas`;
+      const url = `${API_CONFIG.BASE_URL}/estoque-remessa/${vistoriaId}/despesas`;
       addLog(`🔄 URL: ${url}`);
       
       // Fazer requisição direta sem o prefixo Bearer

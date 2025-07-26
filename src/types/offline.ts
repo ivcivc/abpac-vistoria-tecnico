@@ -1,5 +1,7 @@
 // Tipos para o Sistema Offline - Sistema de Vistoria ABPAC
 
+import { API_CONFIG } from '@/config/api';
+
 export interface OfflineState {
   // Status de conectividade
   isOnline: boolean;
@@ -100,8 +102,7 @@ export const OFFLINE_CONFIG = {
 
   // URLs do backend
   PING_ENDPOINT: '/health', // Sem /api pois buildApiUrl já adiciona baseUrl com /api
-  BASE_URL:
-    process.env.NODE_ENV === 'production' ? 'https://api.abpac.com.br' : 'http://localhost:3333',
+  baseUrl: API_CONFIG.BASE_URL.replace('/api', ''),
 } as const;
 
 // Estados da conexão para melhor UX

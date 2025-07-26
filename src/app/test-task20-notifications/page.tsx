@@ -12,6 +12,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { AlertCircle, CheckCircle, RefreshCw } from 'lucide-react';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+import { API_CONFIG } from '@/config/api';
 
 export default function TestApprovalNotificationsPage() {
   // Estados
@@ -154,7 +155,7 @@ export default function TestApprovalNotificationsPage() {
                         size="sm"
                         onClick={() => {
                           addLog('🔍 Verificando conectividade com o backend...');
-                          fetch('http://localhost:3333/api/health')
+                          fetch(`${API_CONFIG.BASE_URL}/health`)
                             .then(response => {
                               if (response.ok) {
                                 addLog('✅ Backend está online e respondendo');

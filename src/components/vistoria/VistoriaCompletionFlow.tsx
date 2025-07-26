@@ -28,6 +28,7 @@ import {
   Cloud,
   CloudOff
 } from 'lucide-react';
+import { API_CONFIG } from '@/config/api';
 
 interface VistoriaCompletionFlowProps {
   vistoria: VistoriaLocal;
@@ -71,7 +72,7 @@ export function VistoriaCompletionFlow({
   useEffect(() => {
     const checkConnectivity = async () => {
       try {
-        const response = await fetch('http://localhost:3333/api/health', {
+        const response = await fetch(`${API_CONFIG.BASE_URL}/health`, {
           method: 'GET',
           headers: { 'Content-Type': 'application/json' }
         });

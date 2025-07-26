@@ -142,7 +142,7 @@ export function SimpleAuthProvider({ children }: { children: ReactNode }) {
 
     try {
       // ENDPOINT CORRETO que já existe no backend
-      const API_BASE = 'http://localhost:3333/api';
+      const API_BASE = API_CONFIG.BASE_URL;
       const apiUrl = `${API_BASE}/vistoria/${token}`;
 
       console.log('📡 [API] Fazendo requisição GET para:', apiUrl);
