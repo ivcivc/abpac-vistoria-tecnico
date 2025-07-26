@@ -32,6 +32,7 @@ interface DespesasListProps {
   readOnly?: boolean;
   vistoriaId?: string; // ID da vistoria para carregamento automático
   useRealData?: boolean; // Se true, carrega dados do backend
+  token?: string | null; // Token de autenticação opcional via props
 }
 
 interface DespesaAgrupada {
@@ -73,7 +74,8 @@ export function DespesasList({
   onEditDespesa,
   readOnly = false,
   vistoriaId,
-  useRealData = false
+  useRealData = false,
+  token: tokenProp // Token recebido via props
 }: DespesasListProps) {
   const [filtroTipo, setFiltroTipo] = useState<string>('');
   const [filtroTexto, setFiltroTexto] = useState<string>('');
@@ -83,8 +85,11 @@ export function DespesasList({
   const [error, setError] = useState<string | null>(null);
   const [despesasCarregadas, setDespesasCarregadas] = useState<Despesa[]>([]);
   
-  // Obter token de autenticação
-  const { token } = useAuth();
+  // Obter token de autenticação do contexto ou das props
+  const authContext = useAuth();
+  const authToken = authContext?.token;
+  // Usar tokenProp se fornecido, senão usar o token do contexto
+  const effectiveToken = tokenProp !== undefined ? tokenProp : authToken;
 
   // Função para formatar valor monetário
   const formatCurrency = (value: number): string => {
@@ -93,14 +98,14 @@ export function DespesasList({
 
   // Carregar despesas do backend se useRealData for true
   useEffect(() => {
-    if (useRealData && vistoriaId && token) {
+    if (useRealData && vistoriaId && effectiveToken) {
       carregarDespesasDoBackend();
     }
-  }, [useRealData, vistoriaId, token]);
+  }, [useRealData, vistoriaId, effectiveToken]);
 
   // Função para carregar despesas do backend
   const carregarDespesasDoBackend = async () => {
-    if (!vistoriaId || !token) {
+    if (!vistoriaId || !effectiveToken) {
       console.warn('⚠️ DespesasList: Impossível carregar despesas sem vistoriaId ou token');
       return;
     }
@@ -116,7 +121,7 @@ export function DespesasList({
         statusFiltro: mostrarApenas
       };
 
-      const result = await DespesasListService.obterDespesas(options, token);
+      const result = await DespesasListService.obterDespesas(options, effectiveToken);
 
       if (result.success && result.despesas) {
         setDespesasCarregadas(result.despesas);
@@ -162,7 +167,7 @@ export function DespesasList({
   // Agrupar despesas por item
   const despesasAgrupadas = useMemo((): DespesaAgrupada[] => {
     // Se estiver usando dados reais, podemos usar o agrupamento já feito pelo serviço
-    if (useRealData && vistoriaId && token) {
+    if (useRealData && vistoriaId && effectiveToken) {
       return DespesasListService.agruparPorItem(despesasFiltradas);
     }
 
@@ -182,12 +187,12 @@ export function DespesasList({
     }, {} as Record<string, DespesaAgrupada>);
 
     return Object.values(grupos).sort((a, b) => b.total - a.total);
-  }, [despesasFiltradas, useRealData, vistoriaId, token]);
+  }, [despesasFiltradas, useRealData, vistoriaId, effectiveToken]);
 
   // Calcular estatísticas
   const estatisticas = useMemo(() => {
     // Se estiver usando dados reais, podemos usar os totais já calculados pelo serviço
-    if (useRealData && vistoriaId && token) {
+    if (useRealData && vistoriaId && effectiveToken) {
       return DespesasListService.calcularTotais(despesasFiltradas);
     }
 
@@ -234,7 +239,7 @@ export function DespesasList({
       despesasAprovadas,
       despesasPendentes: despesasFiltradas.length - despesasAprovadas
     };
-  }, [despesasFiltradas, despesasAgrupadas.length, useRealData, vistoriaId, token]);
+  }, [despesasFiltradas, despesasAgrupadas.length, useRealData, vistoriaId, effectiveToken]);
 
   // Limpar filtros e recarregar dados se necessário
   const limparFiltros = () => {
@@ -243,14 +248,14 @@ export function DespesasList({
     setMostrarApenas('todas');
 
     // Se estiver usando dados reais, recarregar do backend
-    if (useRealData && vistoriaId && token) {
+    if (useRealData && vistoriaId && effectiveToken) {
       carregarDespesasDoBackend();
     }
   };
 
   // Aplicar filtros e recarregar dados se necessário
   const aplicarFiltros = () => {
-    if (useRealData && vistoriaId && token) {
+    if (useRealData && vistoriaId && effectiveToken) {
       carregarDespesasDoBackend();
     }
   };
