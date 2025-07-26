@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { StatusBadge } from './StatusBadge';
 import { MediaCapture, MediaFile } from '@/components/media/MediaCapture';
+import { SimpleMediaCapture } from '@/components/media/SimpleMediaCapture';
 import { DespesaForm } from '@/components/despesas';
 import { Despesa } from '@/types/storage';
 import { UploadService } from '@/services/uploadService';
@@ -529,7 +530,7 @@ export function ItemDetail({ item, readOnly, onUpdate }: ItemDetailProps) {
                      Capture uma ou mais fotos do local onde o equipamento foi instalado/escondido
                    </p>
                  </div>
-                 <MediaCapture
+                 <SimpleMediaCapture
                    onCapture={(evidences) => {
                      console.log('📸 Captura do local de instalação:', evidences);
                      setFotosLocalInstalacao(evidences);
@@ -628,7 +629,7 @@ export function ItemDetail({ item, readOnly, onUpdate }: ItemDetailProps) {
                     Capture uma ou mais fotos claras do número de série digitado acima
                   </p>
                 </div>
-                <MediaCapture
+                <SimpleMediaCapture
                   onCapture={(evidences) => {
                     console.log('📸 Captura de número de série:', evidences);
                     setFotosNumeroSerie(evidences);
@@ -705,7 +706,7 @@ export function ItemDetail({ item, readOnly, onUpdate }: ItemDetailProps) {
                    Capture fotos/vídeos adicionais relevantes para a vistoria
                  </p>
                </div>
-               <MediaCapture
+               <SimpleMediaCapture
                  onCapture={(evidences) => {
                    console.log('📸 Outras evidências capturadas:', evidences);
                    setFotosOutrasEvidencias(evidences);
