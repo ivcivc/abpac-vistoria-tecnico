@@ -1,5 +1,9 @@
 import { STORES, DatabaseStore, StoreNames } from '@/types/storage';
 
+/**
+ * Serviço para interação com IndexedDB
+ */
+
 export class IndexedDBService {
   private static instance: IndexedDBService;
   private db: IDBDatabase | null = null;
@@ -85,6 +89,11 @@ export class IndexedDBService {
   private constructor() {}
 
   static getInstance(): IndexedDBService {
+    if (typeof window === 'undefined') {
+      // Mock para SSR
+      return new IndexedDBService();
+    }
+    
     if (!IndexedDBService.instance) {
       IndexedDBService.instance = new IndexedDBService();
     }
@@ -199,51 +208,97 @@ export class IndexedDBService {
   /**
    * Obtém estatísticas de uso do armazenamento
    */
-  async getStorageStats(): Promise<{
-    estimatedUsage: number;
-    quota: number;
-    usagePercentage: number;
-  }> {
-    if ('storage' in navigator && 'estimate' in navigator.storage) {
-      const estimate = await navigator.storage.estimate();
-      const quota = estimate.quota || 0;
-      const usage = estimate.usage || 0;
-
+  async getStorageStats(): Promise<{ quota: number; estimatedUsage: number; usagePercentage: number }> {
+    if (typeof window === 'undefined') {
       return {
-        estimatedUsage: usage,
-        quota: quota,
-        usagePercentage: quota > 0 ? Math.round((usage / quota) * 100) : 0,
+        quota: 0,
+        estimatedUsage: 0,
+        usagePercentage: 0
       };
     }
+    
+    try {
+      // Usar API de estimativa de armazenamento
+      if ('storage' in navigator && 'estimate' in navigator.storage) {
+        const estimate = await navigator.storage.estimate();
+        const quota = estimate.quota || 0;
+        const usage = estimate.usage || 0;
+        const percentage = quota > 0 ? Math.round((usage / quota) * 100) : 0;
 
-    return {
-      estimatedUsage: 0,
-      quota: 0,
-      usagePercentage: 0,
-    };
+        return {
+          quota,
+          estimatedUsage: usage,
+          usagePercentage: percentage
+        };
+      }
+
+      // Fallback para browsers sem suporte à API de estimativa
+      return {
+        quota: 0,
+        estimatedUsage: 0,
+        usagePercentage: 0
+      };
+    } catch (error) {
+      console.error('❌ Erro ao obter estatísticas de armazenamento:', error);
+      return {
+        quota: 0,
+        estimatedUsage: 0,
+        usagePercentage: 0
+      };
+    }
   }
 
   /**
-   * Limpa todos os dados do banco (útil para desenvolvimento e reset)
+   * Limpa completamente o banco IndexedDB
    */
   async clearAllData(): Promise<void> {
-    if (!this.db) {
-      throw new Error('Banco de dados não inicializado');
+    if (typeof window === 'undefined') {
+      return;
     }
+    
+    try {
+      // Obter lista de bancos de dados
+      const databases = await indexedDB.databases();
 
-    const transaction = this.getTransaction(Object.values(STORES), 'readwrite');
+      // Deletar cada banco
+      for (const db of databases) {
+        if (db.name) {
+          console.log(`🗑️ Deletando banco: ${db.name}`);
+          await this.deleteDatabase(db.name);
+        }
+      }
 
-    const promises = Object.values(STORES).map(storeName => {
-      return new Promise<void>((resolve, reject) => {
-        const store = this.getStore(transaction, storeName);
-        const request = store.clear();
+      console.log('✅ Todos os bancos IndexedDB foram limpos');
+    } catch (error) {
+      console.error('❌ Erro ao limpar IndexedDB:', error);
+      throw error;
+    }
+  }
 
-        request.onsuccess = () => resolve();
-        request.onerror = () => reject(new Error(`Erro ao limpar store ${storeName}`));
-      });
+  /**
+   * Deleta um banco de dados específico
+   */
+  private async deleteDatabase(dbName: string): Promise<void> {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.deleteDatabase(dbName);
+
+      request.onsuccess = () => {
+        resolve();
+      };
+
+      request.onerror = () => {
+        reject(new Error(`Erro ao deletar banco ${dbName}`));
+      };
+
+      request.onblocked = () => {
+        console.warn(`⚠️ Deleção do banco ${dbName} bloqueada - feche todas as abas do aplicativo`);
+        // Tentar novamente após um tempo
+        setTimeout(() => resolve(), 1000);
+      };
     });
-
-    await Promise.all(promises);
-    console.log('🧹 Todos os dados foram limpos do IndexedDB');
   }
 }

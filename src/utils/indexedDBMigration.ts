@@ -10,6 +10,14 @@ export class IndexedDBMigration {
    * Limpa completamente o banco IndexedDB (desenvolvimento)
    */
   async clearIndexedDB(): Promise<{ success: boolean; message: string }> {
+    // Verificar se estamos no navegador
+    if (typeof window === 'undefined') {
+      return {
+        success: false,
+        message: 'IndexedDB não disponível no servidor',
+      };
+    }
+
     try {
       // Fechar qualquer conexão aberta
       const databases = await indexedDB.databases();
@@ -62,6 +70,14 @@ export class IndexedDBMigration {
    * Verifica a versão atual do banco
    */
   async checkDatabaseVersion(): Promise<{ currentVersion: number; expectedVersion: number }> {
+    // Verificar se estamos no navegador
+    if (typeof window === 'undefined') {
+      return {
+        currentVersion: 0,
+        expectedVersion: 2,
+      };
+    }
+
     try {
       const databases = await indexedDB.databases();
       const currentDb = databases.find(db => db.name === this.dbName);
@@ -83,6 +99,14 @@ export class IndexedDBMigration {
    * Força migração do banco para nova versão
    */
   async forceMigration(): Promise<{ success: boolean; message: string }> {
+    // Verificar se estamos no navegador
+    if (typeof window === 'undefined') {
+      return {
+        success: false,
+        message: 'IndexedDB não disponível no servidor',
+      };
+    }
+
     try {
       const versionInfo = await this.checkDatabaseVersion();
 
@@ -125,6 +149,16 @@ export class IndexedDBMigration {
     storageUsed: number;
     issues: string[];
   }> {
+    // Verificar se estamos no navegador
+    if (typeof window === 'undefined') {
+      return {
+        databases: [],
+        stores: [],
+        storageUsed: 0,
+        issues: ['IndexedDB não disponível no servidor'],
+      };
+    }
+
     try {
       // Listar bancos existentes
       const databases = await indexedDB.databases();
@@ -163,7 +197,7 @@ export class IndexedDBMigration {
 
       // Estimar uso de storage
       let storageUsed = 0;
-      if ('estimate' in navigator.storage) {
+      if (typeof navigator !== 'undefined' && 'storage' in navigator && 'estimate' in navigator.storage) {
         const estimate = await navigator.storage.estimate();
         storageUsed = estimate.usage || 0;
       }
@@ -190,21 +224,23 @@ export class IndexedDBMigration {
 export const indexedDBMigration = new IndexedDBMigration();
 
 // Função helper para uso no console do navegador
-(window as any).clearVistoriaDB = async () => {
-  const migration = new IndexedDBMigration();
-  const result = await migration.clearIndexedDB();
-  console.log(result.message);
-  return result;
-};
+if (typeof window !== 'undefined') {
+  (window as any).clearVistoriaDB = async () => {
+    const migration = new IndexedDBMigration();
+    const result = await migration.clearIndexedDB();
+    console.log(result.message);
+    return result;
+  };
 
-(window as any).diagnoseVistoriaDB = async () => {
-  const migration = new IndexedDBMigration();
-  const result = await migration.diagnose();
-  console.table(result.databases);
-  console.log('Stores:', result.stores);
-  console.log('Storage usado:', (result.storageUsed / 1024 / 1024).toFixed(2), 'MB');
-  if (result.issues.length > 0) {
-    console.warn('Problemas encontrados:', result.issues);
-  }
-  return result;
-};
+  (window as any).diagnoseVistoriaDB = async () => {
+    const migration = new IndexedDBMigration();
+    const result = await migration.diagnose();
+    console.table(result.databases);
+    console.log('Stores:', result.stores);
+    console.log('Storage usado:', (result.storageUsed / 1024 / 1024).toFixed(2), 'MB');
+    if (result.issues.length > 0) {
+      console.warn('Problemas encontrados:', result.issues);
+    }
+    return result;
+  };
+}

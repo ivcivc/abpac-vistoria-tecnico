@@ -45,6 +45,9 @@ export class StorageManagerService {
   };
 
   private constructor() {
+    // Verificar se estamos no navegador
+    if (typeof window === 'undefined') return;
+    
     this.indexedDBService = IndexedDBService.getInstance();
     this.crudService = new CRUDService();
     
@@ -53,6 +56,13 @@ export class StorageManagerService {
   }
 
   static getInstance(): StorageManagerService {
+    // Verificar se estamos no navegador
+    if (typeof window === 'undefined') {
+      // Retornar uma instância mock para SSR
+      const mockInstance = new StorageManagerService();
+      return mockInstance;
+    }
+    
     if (!StorageManagerService.instance) {
       StorageManagerService.instance = new StorageManagerService();
     }
@@ -63,6 +73,9 @@ export class StorageManagerService {
    * Inicializa o monitoramento automático de armazenamento
    */
   private initAutoCleanup(): void {
+    // Verificar se estamos no navegador
+    if (typeof window === 'undefined') return;
+    
     // Verificar armazenamento a cada hora
     setInterval(async () => {
       if (!this.settings.autoCleanupEnabled) return;
@@ -85,6 +98,24 @@ export class StorageManagerService {
    * Obtém estatísticas detalhadas de uso de armazenamento
    */
   async getStorageStats(): Promise<StorageStats> {
+    // Verificar se estamos no navegador
+    if (typeof window === 'undefined') {
+      return {
+        totalUsage: 0,
+        availableSpace: 0,
+        percentageUsed: 0,
+        itemCounts: {
+          vistorias: 0,
+          itens: 0,
+          evidencias: 0,
+          despesas: 0,
+          syncQueue: 0
+        },
+        oldestItem: null,
+        newestItem: null
+      };
+    }
+    
     // Obter estatísticas básicas do IndexedDB
     const basicStats = await this.indexedDBService.getStorageStats();
     
@@ -471,6 +502,9 @@ export class StorageManagerService {
    * Força limpeza completa do armazenamento (apenas para desenvolvimento/debug)
    */
   async clearAllData(): Promise<void> {
+    // Verificar se estamos no navegador
+    if (typeof window === 'undefined') return;
+    
     await this.indexedDBService.clearAllData();
     
     // Limpar localStorage relacionado à aplicação
