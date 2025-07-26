@@ -22,7 +22,9 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { DespesasListService, DespesasListOptions } from '@/services/despesas/DespesasListService';
-import { useAuth } from '@/contexts/AuthContext';
+
+// Remover a importação do useAuth para evitar o erro
+// import { useAuth } from '@/contexts/AuthContext';
 
 interface DespesasListProps {
   despesas: Despesa[];
@@ -85,11 +87,8 @@ export function DespesasList({
   const [error, setError] = useState<string | null>(null);
   const [despesasCarregadas, setDespesasCarregadas] = useState<Despesa[]>([]);
   
-  // Obter token de autenticação do contexto ou das props
-  const authContext = useAuth();
-  const authToken = authContext?.token;
-  // Usar tokenProp se fornecido, senão usar o token do contexto
-  const effectiveToken = tokenProp !== undefined ? tokenProp : authToken;
+  // Usar diretamente o token das props
+  const effectiveToken = tokenProp;
 
   // Função para formatar valor monetário
   const formatCurrency = (value: number): string => {
@@ -107,6 +106,7 @@ export function DespesasList({
   const carregarDespesasDoBackend = async () => {
     if (!vistoriaId || !effectiveToken) {
       console.warn('⚠️ DespesasList: Impossível carregar despesas sem vistoriaId ou token');
+      setError('Token de autenticação não fornecido. Use o campo acima para definir um token.');
       return;
     }
 
@@ -280,6 +280,16 @@ export function DespesasList({
         </div>
       )}
 
+      {/* Mensagem de autenticação quando useRealData é true mas não há token */}
+      {useRealData && !effectiveToken && (
+        <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+          <p className="text-sm text-yellow-700 flex items-center gap-2">
+            <AlertCircle className="w-4 h-4" />
+            Para carregar dados reais, é necessário fornecer um token de autenticação.
+          </p>
+        </div>
+      )}
+
       {/* Card de Estatísticas Gerais */}
       <Card>
         <CardHeader>
@@ -447,7 +457,7 @@ export function DespesasList({
                     size="sm"
                     onClick={aplicarFiltros}
                     className="flex items-center gap-1"
-                    disabled={isLoading}
+                    disabled={isLoading || !effectiveToken}
                   >
                     {isLoading ? (
                       <Loader2 className="w-4 h-4 animate-spin" />

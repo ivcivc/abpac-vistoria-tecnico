@@ -7,7 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { useAuth } from '@/contexts/AuthContext';
+// Remover a importação do useAuth
+// import { useAuth } from '@/contexts/AuthContext';
 import Link from 'next/link';
 import { 
   ArrowLeft, 
@@ -96,6 +97,30 @@ export default function TestDespesasListPage() {
   useEffect(() => {
     addLog('⚠️ Use o campo abaixo para definir um token de teste.');
   }, []);
+
+  // Dados de exemplo para demonstração
+  const exemplosDespesas = [
+    {
+      id: 'desp_001',
+      itemId: 'item_001',
+      vistoriaId: '1',
+      tipo: 'MATERIAL',
+      valor: 45.50,
+      descricao: 'Cabo de alimentação para localizador',
+      timestamp: new Date('2024-01-15T09:30:00'),
+      aprovada: true
+    },
+    {
+      id: 'desp_002',
+      itemId: 'item_002',
+      vistoriaId: '1',
+      tipo: 'SERVICO',
+      valor: 120.00,
+      descricao: 'Instalação especializada em local de difícil acesso',
+      timestamp: new Date('2024-01-15T10:15:00'),
+      aprovada: false
+    }
+  ];
 
   return (
     <TestAuthProvider token={testToken}>
@@ -236,7 +261,7 @@ export default function TestDespesasListPage() {
 
           {/* Componente DespesasList */}
           <TestDespesasList
-            despesas={[]} // Dados vazios, serão carregados do backend se useRealData=true
+            despesas={useRealData ? [] : exemplosDespesas} // Usar dados de exemplo se não estiver usando dados reais
             showItemGrouping={true}
             showFilters={true}
             readOnly={true}
