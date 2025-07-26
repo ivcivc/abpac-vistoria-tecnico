@@ -1,13 +1,12 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, createContext, useContext } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { DespesaForm } from '@/components/despesas/DespesaForm';
 import { DespesasList } from '@/components/despesas/DespesasList';
 import { DespesaService } from '@/services/despesas/DespesaService';
-import { useAuth } from '@/contexts/AuthContext';
 import { Despesa } from '@/types/storage';
 import { 
   Receipt, 
@@ -15,9 +14,17 @@ import {
   RefreshCw, 
   AlertCircle, 
   CheckCircle,
-  Loader2
+  Loader2,
+  Key
 } from 'lucide-react';
 
+// Criar um contexto de autenticação simplificado para a página de teste
+const TestAuthContext = createContext<{ token: string | null }>({ token: null });
+
+// Hook para usar o contexto de autenticação de teste
+const useTestAuth = () => useContext(TestAuthContext);
+
+// Componente principal da página
 export default function TestDespesasPage() {
   const [despesas, setDespesas] = useState<Despesa[]>([]);
   const [showForm, setShowForm] = useState(false);
@@ -26,17 +33,28 @@ export default function TestDespesasPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [vistoriaId, setVistoriaId] = useState('1'); // ID de teste
   const [itemId, setItemId] = useState('1'); // ID de teste
-  
-  const { token } = useAuth();
+  const [testToken, setTestToken] = useState<string | null>(null);
+  const [tokenInput, setTokenInput] = useState('');
   
   // Função para adicionar logs
   const addLog = (message: string) => {
     setLogs(prev => [`[${new Date().toLocaleTimeString()}] ${message}`, ...prev]);
   };
   
+  // Função para definir o token de teste
+  const handleSetToken = () => {
+    if (tokenInput.trim()) {
+      setTestToken(tokenInput.trim());
+      addLog(`✅ Token de teste definido: ${tokenInput.substring(0, 10)}...`);
+    } else {
+      setTestToken(null);
+      addLog('❌ Token de teste removido');
+    }
+  };
+  
   // Carregar despesas do backend
   const carregarDespesas = async () => {
-    if (!token) {
+    if (!testToken) {
       addLog('❌ Sem token de autenticação. Não é possível carregar despesas.');
       return;
     }
@@ -45,7 +63,7 @@ export default function TestDespesasPage() {
     addLog('🔄 Carregando despesas do backend...');
     
     try {
-      const result = await DespesaService.obterDespesas(vistoriaId, token);
+      const result = await DespesaService.obterDespesas(vistoriaId, testToken);
       
       if (result.success && result.despesas) {
         const despesasConvertidas = result.despesas.map(d => 
@@ -70,12 +88,12 @@ export default function TestDespesasPage() {
     setIsLoading(true);
     
     try {
-      if (token) {
+      if (testToken) {
         // Salvar no backend
         const result = await DespesaService.adicionarDespesa(
           vistoriaId,
           novaDespesa,
-          token
+          testToken
         );
         
         if (result.success && result.despesa) {
@@ -133,179 +151,211 @@ export default function TestDespesasPage() {
   
   // Efeito para carregar despesas inicialmente
   useEffect(() => {
-    if (token) {
+    if (testToken) {
       carregarDespesas();
     } else {
       addLog('⚠️ Sem token de autenticação disponível. Operando em modo offline.');
     }
-  }, [token]);
+  }, [testToken]);
   
+  // Renderizar a página dentro do contexto de autenticação de teste
   return (
-    <div className="container mx-auto py-8 space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Receipt className="w-6 h-6" />
-              <span>Teste da Task 17 - Integração de Despesas</span>
-            </div>
-            <Badge className={token ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
-              {token ? 'Autenticado' : 'Não Autenticado'}
-            </Badge>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-2">
-            <p className="text-sm">
-              Esta página testa a integração com os endpoints reais de despesas do backend.
-            </p>
-            <div className="flex items-center gap-2">
-              <Badge variant="outline">Vistoria ID: {vistoriaId}</Badge>
-              <Badge variant="outline">Item ID: {itemId}</Badge>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-      
-      {/* Logs */}
-      <Card className="border-blue-200">
-        <CardHeader className="bg-blue-50">
-          <CardTitle className="text-blue-800 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span>Logs</span>
-              <Badge className="bg-blue-100 text-blue-800">
-                {logs.length}
+    <TestAuthContext.Provider value={{ token: testToken }}>
+      <div className="container mx-auto py-8 space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Receipt className="w-6 h-6" />
+                <span>Teste da Task 17 - Integração de Despesas</span>
+              </div>
+              <Badge className={testToken ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
+                {testToken ? 'Autenticado' : 'Não Autenticado'}
               </Badge>
-            </div>
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={() => setLogs([])}
-              className="h-8"
-            >
-              Limpar Logs
-            </Button>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="max-h-40 overflow-y-auto bg-gray-50 p-0">
-          {logs.length > 0 ? (
-            <div className="divide-y">
-              {logs.map((log, index) => (
-                <div key={index} className="px-4 py-2 text-sm font-mono">
-                  {log}
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="p-4 text-center text-gray-500">
-              Nenhum log disponível
-            </div>
-          )}
-        </CardContent>
-      </Card>
-      
-      {/* Ações */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Ações</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex flex-wrap gap-3">
-            <Button
-              onClick={() => {
-                setShowForm(true);
-                setEditingDespesa(null);
-              }}
-              disabled={isLoading}
-              className="flex items-center gap-2"
-            >
-              <Plus className="w-4 h-4" />
-              Nova Despesa
-            </Button>
-            
-            <Button
-              onClick={carregarDespesas}
-              disabled={!token || isLoading}
-              variant="outline"
-              className="flex items-center gap-2"
-            >
-              {isLoading ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <RefreshCw className="w-4 h-4" />
-              )}
-              Recarregar Despesas
-            </Button>
-          </div>
-          
-          {!token && (
-            <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-              <p className="text-sm text-yellow-800 flex items-center gap-2">
-                <AlertCircle className="w-4 h-4" />
-                Sem token de autenticação. Algumas funcionalidades estarão limitadas.
-              </p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-      
-      {/* Formulário */}
-      {showForm && (
-        <Card className="border-green-200">
-          <CardHeader className="bg-green-50">
-            <CardTitle className="text-green-800">
-              {editingDespesa ? 'Editar Despesa' : 'Nova Despesa'}
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <DespesaForm
-              despesa={editingDespesa || undefined}
-              vistoriaId={vistoriaId}
-              itemId={itemId}
-              onSave={handleSaveDespesa}
-              onCancel={() => {
-                setShowForm(false);
-                setEditingDespesa(null);
-              }}
-            />
+            <div className="space-y-4">
+              <p className="text-sm">
+                Esta página testa a integração com os endpoints reais de despesas do backend.
+              </p>
+              <div className="flex items-center gap-2">
+                <Badge variant="outline">Vistoria ID: {vistoriaId}</Badge>
+                <Badge variant="outline">Item ID: {itemId}</Badge>
+              </div>
+              
+              {/* Input para token de teste */}
+              <div className="flex gap-2 mt-4">
+                <div className="flex-1">
+                  <input
+                    type="text"
+                    value={tokenInput}
+                    onChange={(e) => setTokenInput(e.target.value)}
+                    placeholder="Cole aqui um token de autenticação para teste"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  />
+                </div>
+                <Button
+                  onClick={handleSetToken}
+                  className="flex items-center gap-2"
+                >
+                  <Key className="w-4 h-4" />
+                  {testToken ? 'Atualizar Token' : 'Definir Token'}
+                </Button>
+              </div>
+            </div>
           </CardContent>
         </Card>
-      )}
-      
-      {/* Lista de Despesas */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Receipt className="w-5 h-5" />
-            Despesas
-            <Badge className="bg-blue-100 text-blue-800">
-              {despesas.length}
-            </Badge>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="flex justify-center items-center py-8">
-              <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+        
+        {/* Logs */}
+        <Card className="border-blue-200">
+          <CardHeader className="bg-blue-50">
+            <CardTitle className="text-blue-800 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span>Logs</span>
+                <Badge className="bg-blue-100 text-blue-800">
+                  {logs.length}
+                </Badge>
+              </div>
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => setLogs([])}
+                className="h-8"
+              >
+                Limpar Logs
+              </Button>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="max-h-40 overflow-y-auto bg-gray-50 p-0">
+            {logs.length > 0 ? (
+              <div className="divide-y">
+                {logs.map((log, index) => (
+                  <div key={index} className="px-4 py-2 text-sm font-mono">
+                    {log}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="p-4 text-center text-gray-500">
+                Nenhum log disponível
+              </div>
+            )}
+          </CardContent>
+        </Card>
+        
+        {/* Ações */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Ações</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex flex-wrap gap-3">
+              <Button
+                onClick={() => {
+                  setShowForm(true);
+                  setEditingDespesa(null);
+                }}
+                disabled={isLoading}
+                className="flex items-center gap-2"
+              >
+                <Plus className="w-4 h-4" />
+                Nova Despesa
+              </Button>
+              
+              <Button
+                onClick={carregarDespesas}
+                disabled={!testToken || isLoading}
+                variant="outline"
+                className="flex items-center gap-2"
+              >
+                {isLoading ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="w-4 h-4" />
+                )}
+                Recarregar Despesas
+              </Button>
             </div>
-          ) : despesas.length > 0 ? (
-            <DespesasList
-              despesas={despesas}
-              onEditDespesa={handleEditDespesa}
-              showFilters={true}
-              showItemGrouping={true}
-            />
-          ) : (
-            <div className="text-center py-8 text-gray-500">
-              <Receipt className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-              <p className="text-sm">Nenhuma despesa encontrada</p>
-              <p className="text-xs mt-1">
-                Adicione uma despesa usando o botão "Nova Despesa"
-              </p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    </div>
+            
+            {!testToken && (
+              <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <p className="text-sm text-yellow-800 flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4" />
+                  Defina um token de autenticação para testar a integração com o backend.
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+        
+        {/* Formulário */}
+        {showForm && (
+          <Card className="border-green-200">
+            <CardHeader className="bg-green-50">
+              <CardTitle className="text-green-800">
+                {editingDespesa ? 'Editar Despesa' : 'Nova Despesa'}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <TestDespesaForm
+                despesa={editingDespesa || undefined}
+                vistoriaId={vistoriaId}
+                itemId={itemId}
+                onSave={handleSaveDespesa}
+                onCancel={() => {
+                  setShowForm(false);
+                  setEditingDespesa(null);
+                }}
+              />
+            </CardContent>
+          </Card>
+        )}
+        
+        {/* Lista de Despesas */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Receipt className="w-5 h-5" />
+              Despesas
+              <Badge className="bg-blue-100 text-blue-800">
+                {despesas.length}
+              </Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <div className="flex justify-center items-center py-8">
+                <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+              </div>
+            ) : despesas.length > 0 ? (
+              <DespesasList
+                despesas={despesas}
+                onEditDespesa={handleEditDespesa}
+                showFilters={true}
+                showItemGrouping={true}
+                readOnly={false}
+              />
+            ) : (
+              <div className="text-center py-8 text-gray-500">
+                <Receipt className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                <p className="text-sm">Nenhuma despesa encontrada</p>
+                <p className="text-xs mt-1">
+                  Adicione uma despesa usando o botão "Nova Despesa"
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </TestAuthContext.Provider>
   );
+}
+
+// Versão modificada do DespesaForm que usa o contexto de autenticação de teste
+function TestDespesaForm(props: any) {
+  const { token } = useTestAuth();
+  
+  // Componente com mesmo comportamento do DespesaForm, mas usando o contexto de teste
+  return <DespesaForm {...props} token={token} />;
 } 

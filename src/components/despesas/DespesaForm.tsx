@@ -31,6 +31,7 @@ interface DespesaFormProps {
   onSave: (despesa: Omit<Despesa, 'id'>) => void;
   onCancel: () => void;
   readOnly?: boolean;
+  token?: string | null; // Token opcional via props
 }
 
 type TiposDespesa = 'SERVICO' | 'MATERIAL' | 'DESLOCAMENTO' | 'OUTROS';
@@ -48,7 +49,8 @@ export function DespesaForm({
   itemId,
   onSave,
   onCancel,
-  readOnly = false
+  readOnly = false,
+  token: tokenProp // Token recebido via props
 }: DespesaFormProps) {
   const [tipo, setTipo] = useState<TiposDespesa>(despesa?.tipo || 'SERVICO');
   const [valor, setValor] = useState<string>(despesa?.valor ? formatCurrency(despesa.valor) : '');
@@ -59,8 +61,9 @@ export function DespesaForm({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   
-  // Obter contexto de autenticação
-  const { token } = useAuth();
+  // Obter contexto de autenticação, mas usar tokenProp se fornecido
+  const authContext = useAuth();
+  const effectiveToken = tokenProp !== undefined ? tokenProp : authContext?.token;
 
   // Função para formatar valor monetário
   function formatCurrency(value: number): string {
@@ -165,12 +168,12 @@ export function DespesaForm({
       };
 
       // Se tivermos token, enviar para o backend
-      if (token) {
+      if (effectiveToken) {
         console.log('📤 DespesaForm: Enviando despesa para o backend');
         const result = await DespesaService.adicionarDespesa(
           vistoriaId,
           novaDespesa,
-          token
+          effectiveToken
         );
 
         if (!result.success) {
