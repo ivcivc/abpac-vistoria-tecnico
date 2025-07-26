@@ -61,8 +61,27 @@ export default function TestDespesasPage() {
     
     setIsLoading(true);
     addLog('🔄 Carregando despesas do backend...');
+    addLog(`🔄 Vistoria ID: ${vistoriaId}, Token: ${testToken.substring(0, 10)}...`);
     
     try {
+      // Verificar se o backend está acessível
+      try {
+        const healthCheck = await fetch('http://localhost:3333/api/health', {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        
+        if (healthCheck.ok) {
+          addLog('✅ Conexão com o backend estabelecida');
+        } else {
+          addLog(`⚠️ Backend respondeu com status: ${healthCheck.status}`);
+        }
+      } catch (healthError) {
+        addLog(`⚠️ Não foi possível conectar ao backend: ${healthError instanceof Error ? healthError.message : 'Erro desconhecido'}`);
+      }
+      
+      // Tentar obter as despesas
+      addLog('🔄 Chamando DespesaService.obterDespesas...');
       const result = await DespesaService.obterDespesas(vistoriaId, testToken);
       
       if (result.success && result.despesas) {
@@ -77,6 +96,7 @@ export default function TestDespesasPage() {
       }
     } catch (error) {
       addLog(`❌ Exceção ao carregar despesas: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+      console.error('Erro detalhado:', error);
     } finally {
       setIsLoading(false);
     }

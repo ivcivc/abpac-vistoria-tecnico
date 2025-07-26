@@ -22,6 +22,9 @@ export const API_CONFIG = {
     // Adicionar despesa (POST)
     ADD_DESPESA: '/vistoria', // Usar como: POST /api/vistoria/:id/adicionar-despesa
 
+    // Obter despesas (GET)
+    GET_DESPESAS: '/estoque-remessa', // Usar como: GET /api/estoque-remessa/:id/despesas
+
     // Health check (se existir)
     HEALTH: '/health',
   },
@@ -94,6 +97,14 @@ export const API_CONFIG = {
  *
  * MIDDLEWARE: validarTokenVistoria + validarTokenWrite
  * VALIDATOR: EstoqueRemessa/AdicionarDespesa
+ * 
+ * 
+ * 5. GET /api/estoque-remessa/:id/despesas
+ * =======================================
+ * Obter despesas de uma vistoria
+ * 
+ * MIDDLEWARE: auth
+ * CONTROLLER: EstoqueRemessaController.obterDespesasVistoria
  */
 
 /**

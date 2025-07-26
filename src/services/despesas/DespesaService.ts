@@ -44,6 +44,15 @@ export class DespesaService {
         despesa
       });
 
+      // Verificar token
+      if (!token || token.trim() === '') {
+        console.warn('⚠️ DespesaService: Token não fornecido');
+        return {
+          success: false,
+          error: 'Token de autenticação não fornecido'
+        };
+      }
+
       // Preparar dados para o backend
       const despesaBackend: Record<string, any> = {
         descricao: despesa.descricao,
@@ -138,7 +147,8 @@ export class DespesaService {
     try {
       console.log('🔄 DespesaService: Obtendo despesas da vistoria', vistoriaId);
 
-      if (!token) {
+      // Validar token
+      if (!token || token.trim() === '') {
         console.warn('⚠️ DespesaService: Tentativa de obter despesas sem token');
         return {
           success: false,
@@ -146,8 +156,9 @@ export class DespesaService {
         };
       }
 
-      // Construir URL
-      const url = buildApiUrl('/estoque-remessa/:id/despesas', { id: vistoriaId });
+      // Construir URL correta usando o endpoint definido na configuração
+      const url = buildApiUrl(API_CONFIG.ENDPOINTS.GET_DESPESAS, { id: vistoriaId }) + '/despesas';
+      console.log('🔄 DespesaService: URL da requisição:', url);
 
       // Configurar headers
       const headers: Record<string, string> = {
@@ -155,37 +166,63 @@ export class DespesaService {
         'Authorization': `Bearer ${token}`
       };
 
-      // Fazer requisição
-      const response = await fetch(url, {
-        method: 'GET',
-        headers
-      });
+      // Fazer requisição com tratamento de erros melhorado
+      try {
+        const response = await fetch(url, {
+          method: 'GET',
+          headers
+        });
 
-      // Verificar erros de autenticação primeiro
-      if (response.status === 401) {
-        console.error('❌ DespesaService: Erro de autenticação (401) ao obter despesas');
+        // Verificar erros de autenticação primeiro
+        if (response.status === 401) {
+          console.error('❌ DespesaService: Erro de autenticação (401) ao obter despesas');
+          return {
+            success: false,
+            error: 'Token de autenticação inválido ou expirado'
+          };
+        }
+
+        // Verificar outros erros HTTP
+        if (!response.ok) {
+          const errorText = await response.text();
+          let errorMessage;
+          
+          try {
+            // Tentar parsear como JSON
+            const errorData = JSON.parse(errorText);
+            errorMessage = errorData.message || `Erro ${response.status}: ${response.statusText}`;
+          } catch (e) {
+            // Se não for JSON, usar o texto bruto
+            errorMessage = errorText || `Erro ${response.status}: ${response.statusText}`;
+          }
+          
+          throw new Error(errorMessage);
+        }
+
+        const data = await response.json();
+        console.log('✅ DespesaService: Resposta do servidor:', data);
+
+        if (data.type !== true) {
+          throw new Error(data.message || 'Resposta inválida do servidor');
+        }
+
+        console.log('✅ DespesaService: Despesas obtidas com sucesso', data);
+
         return {
-          success: false,
-          error: 'Token de autenticação inválido ou expirado'
+          success: true,
+          despesas: data.data || []
         };
+      } catch (fetchError) {
+        // Capturar erros específicos do fetch
+        if (fetchError instanceof TypeError && fetchError.message === 'Failed to fetch') {
+          console.error('❌ DespesaService: Erro de conexão com o servidor');
+          return {
+            success: false,
+            error: 'Não foi possível conectar ao servidor. Verifique sua conexão ou se o servidor está em execução.'
+          };
+        }
+        throw fetchError;
       }
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || `Erro ${response.status}: ${response.statusText}`);
-      }
-
-      if (data.type !== true) {
-        throw new Error(data.message || 'Resposta inválida do servidor');
-      }
-
-      console.log('✅ DespesaService: Despesas obtidas com sucesso', data);
-
-      return {
-        success: true,
-        despesas: data.data || []
-      };
     } catch (error) {
       console.error('❌ DespesaService: Erro ao obter despesas', error);
       return {
