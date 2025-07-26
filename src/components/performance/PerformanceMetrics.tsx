@@ -17,10 +17,11 @@ export default function PerformanceMetrics({ itemCount }: PerformanceMetricsProp
     memoized: 0,
     nonMemoized: 0
   });
+  const [nonMemoizedResult, setNonMemoizedResult] = useState<number>(0);
   
   // Função para calcular a soma dos números primos até n (ineficiente propositalmente)
   const calculatePrimeSum = (n: number): number => {
-    console.time('nonMemoizedCalculation');
+    console.time('calculation');
     
     const isPrime = (num: number): boolean => {
       for (let i = 2; i < num; i++) {
@@ -36,18 +37,8 @@ export default function PerformanceMetrics({ itemCount }: PerformanceMetricsProp
       }
     }
     
-    console.timeEnd('nonMemoizedCalculation');
+    console.timeEnd('calculation');
     return sum;
-  };
-  
-  // Versão não memoizada - recalcula a cada renderização
-  const nonMemoizedCalculation = () => {
-    const startTime = performance.now();
-    const result = calculatePrimeSum(itemCount);
-    const endTime = performance.now();
-    
-    setRenderTimes(prev => ({ ...prev, nonMemoized: endTime - startTime }));
-    return result;
   };
   
   // Versão memoizada - calcula apenas quando itemCount muda
@@ -60,13 +51,20 @@ export default function PerformanceMetrics({ itemCount }: PerformanceMetricsProp
     return result;
   }, [itemCount]);
   
+  // Usar useEffect para calcular a versão não memoizada para evitar loop infinito
+  useEffect(() => {
+    const startTime = performance.now();
+    const result = calculatePrimeSum(itemCount);
+    const endTime = performance.now();
+    
+    setNonMemoizedResult(result);
+    setRenderTimes(prev => ({ ...prev, nonMemoized: endTime - startTime }));
+  }, [itemCount, refreshCount]); // Recalcular quando itemCount ou refreshCount mudar
+  
   // Função memoizada para forçar recálculo
   const handleRefresh = useCallback(() => {
     setRefreshCount(prev => prev + 1);
   }, []);
-  
-  // Calcular resultado não memoizado a cada renderização
-  const nonMemoizedResult = nonMemoizedCalculation();
   
   // Calcular ganho de performance
   const performanceGain = renderTimes.nonMemoized > 0 
