@@ -1,242 +1,294 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { ApprovalNotification as ApprovalNotificationType } from '@/services/vistoria/ApprovalStatusService';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import React, { useState, useEffect } from 'react';
+import { 
+  Bell, 
+  CheckCircle, 
+  AlertTriangle, 
+  X, 
+  RefreshCw,
+  Info,
+  Check
+} from 'lucide-react';
+import { useApprovalNotifications } from '@/hooks/useApprovalNotifications';
+import { ApprovalNotification as NotificationType } from '@/services/vistoria/ApprovalStatusService';
 import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface ApprovalNotificationProps {
-  notification: ApprovalNotificationType;
-  onDismiss?: (notificationId: string) => void;
-  onMarkAsRead?: (notificationId: string) => void;
-  onViewDetails?: (vistoriaId: string) => void;
-  className?: string;
+  vistoriaId?: string;
+  autoCheck?: boolean;
+  checkInterval?: number;
+  onlyUnread?: boolean;
+  maxHeight?: string;
 }
 
 /**
- * Componente para exibir notificacoes de aprovacao/rejeicao de vistorias
- * Task 20 - Notificacoes de aprovacao/rejeicao
+ * Componente para exibir notificações de aprovação/rejeição de vistorias
  */
-export function ApprovalNotification({ 
-  notification, 
-  onDismiss, 
-  onMarkAsRead,
-  onViewDetails,
-  className = ""
+export function ApprovalNotification({
+  vistoriaId,
+  autoCheck = true,
+  checkInterval = 5,
+  onlyUnread = false,
+  maxHeight = '300px'
 }: ApprovalNotificationProps) {
-  const [isVisible, setIsVisible] = useState(true);
-  const [isExpanded, setIsExpanded] = useState(false);
+  // Estados locais
+  const [isOpen, setIsOpen] = useState(false);
+  const [animateCount, setAnimateCount] = useState(false);
+  const [lastUnreadCount, setLastUnreadCount] = useState(0);
 
-  const isApproval = notification.tipo === 'aprovacao';
-  const isRejection = notification.tipo === 'rejeicao';
+  // Obter token do contexto de autenticação
+  const { token } = useAuth().authState;
 
-  // Auto-marcar como lida apos alguns segundos se for aprovacao
+  // Usar hook de notificações
+  const {
+    notifications,
+    unreadCount,
+    loading,
+    error,
+    checkForNotifications,
+    markAsRead,
+    markAllAsRead,
+    removeNotification
+  } = useApprovalNotifications({
+    vistoriaId: vistoriaId || null,
+    autoCheck,
+    checkInterval
+  });
+
+  // Filtrar notificações não lidas se necessário
+  const displayNotifications = onlyUnread
+    ? notifications.filter(n => !n.read)
+    : notifications;
+
+  // Efeito para animação quando chegam novas notificações
   useEffect(() => {
-    if (isApproval && !notification.lida) {
-      const timer = setTimeout(() => {
-        onMarkAsRead?.(notification.id);
-      }, 3000);
-      
-      return () => clearTimeout(timer);
+    if (unreadCount > lastUnreadCount) {
+      setAnimateCount(true);
+      setTimeout(() => setAnimateCount(false), 1000);
     }
-  }, [isApproval, notification.lida, notification.id, onMarkAsRead]);
+    setLastUnreadCount(unreadCount);
+  }, [unreadCount, lastUnreadCount]);
 
-  const handleDismiss = () => {
-    setIsVisible(false);
-    setTimeout(() => {
-      onDismiss?.(notification.id);
-    }, 300);
-  };
-
-  const handleMarkAsRead = () => {
-    onMarkAsRead?.(notification.id);
-  };
-
-  const handleViewDetails = () => {
-    onViewDetails?.(notification.vistoriaId);
-    onMarkAsRead?.(notification.id);
-  };
-
-  const getCardStyle = () => {
-    if (isApproval) {
-      return "border-l-4 border-l-green-500 bg-green-50";
-    } else if (isRejection) {
-      return "border-l-4 border-l-red-500 bg-red-50";
+  // Verificar notificações manualmente
+  const handleCheckNow = () => {
+    if (token) {
+      checkForNotifications();
     }
-    return "border-l-4 border-l-blue-500 bg-blue-50";
   };
 
-  const getTitleStyle = () => {
-    if (isApproval) {
-      return "text-green-800";
-    } else if (isRejection) {
-      return "text-red-800";
+  // Marcar uma notificação como lida
+  const handleMarkAsRead = (id: string) => {
+    markAsRead(id);
+  };
+
+  // Remover uma notificação
+  const handleRemove = (id: string) => {
+    removeNotification(id);
+  };
+
+  // Marcar todas como lidas
+  const handleMarkAllAsRead = () => {
+    markAllAsRead();
+  };
+
+  // Formatar data relativa
+  const formatRelativeTime = (date: Date): string => {
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMinutes = Math.floor(diffMs / (1000 * 60));
+    
+    if (diffMinutes < 1) return 'agora';
+    if (diffMinutes < 60) return `${diffMinutes}m atrás`;
+    
+    const diffHours = Math.floor(diffMinutes / 60);
+    if (diffHours < 24) return `${diffHours}h atrás`;
+    
+    const diffDays = Math.floor(diffHours / 24);
+    if (diffDays < 30) return `${diffDays}d atrás`;
+    
+    return date.toLocaleDateString('pt-BR');
+  };
+
+  // Obter ícone para o tipo de notificação
+  const getNotificationIcon = (notification: NotificationType) => {
+    switch (notification.type) {
+      case 'approval':
+        return <CheckCircle className="h-5 w-5 text-green-500" />;
+      case 'correction':
+        return <AlertTriangle className="h-5 w-5 text-amber-500" />;
+      case 'info':
+      default:
+        return <Info className="h-5 w-5 text-blue-500" />;
     }
-    return "text-blue-800";
   };
 
-  const formatDate = (date: Date | string) => {
-    const d = new Date(date);
-    return d.toLocaleString('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+  // Obter cor de fundo para o tipo de notificação
+  const getNotificationBgClass = (notification: NotificationType): string => {
+    if (notification.read) return 'bg-gray-50';
+    
+    switch (notification.type) {
+      case 'approval':
+        return 'bg-green-50 border-green-200';
+      case 'correction':
+        return 'bg-amber-50 border-amber-200';
+      case 'info':
+        return 'bg-blue-50 border-blue-200';
+      default:
+        return 'bg-gray-50';
+    }
   };
-
-  if (!isVisible) {
-    return null;
-  }
 
   return (
-    <div className={`transition-all duration-300 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'} ${className}`}>
-      <Card className={`relative ${getCardStyle()} shadow-lg hover:shadow-xl transition-shadow`}>
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <CardTitle className={`flex items-center gap-3 text-lg ${getTitleStyle()}`}>
-              <span className="text-2xl">
-                {isApproval ? '✅' : isRejection ? '❌' : '⏳'}
-              </span>
-              {notification.titulo}
-            </CardTitle>
-            
-            <div className="flex items-center gap-2">
-              {/* Badge de status */}
-              {!notification.lida && (
-                <Badge variant="destructive" className="text-xs animate-pulse">
-                  Nova
+    <div className="relative">
+      {/* Botão de notificações com contador */}
+      <Button
+        variant="outline"
+        size="sm"
+        className="relative"
+        onClick={() => setIsOpen(!isOpen)}
+      >
+        <Bell className="h-4 w-4 mr-1" />
+        <span>Notificações</span>
+        {unreadCount > 0 && (
+          <Badge
+            className={`absolute -top-2 -right-2 px-1 min-w-[1.25rem] h-5 bg-red-500 text-white ${
+              animateCount ? 'animate-pulse' : ''
+            }`}
+          >
+            {unreadCount}
+          </Badge>
+        )}
+      </Button>
+
+      {/* Painel de notificações */}
+      {isOpen && (
+        <Card className="absolute right-0 mt-2 w-80 sm:w-96 z-50 p-0 shadow-lg">
+          {/* Cabeçalho */}
+          <div className="flex items-center justify-between p-3 border-b">
+            <div className="font-medium">
+              Notificações
+              {unreadCount > 0 && (
+                <Badge variant="outline" className="ml-2">
+                  {unreadCount} não {unreadCount === 1 ? 'lida' : 'lidas'}
                 </Badge>
               )}
-              
-              {/* Badge de tipo */}
-              <Badge 
-                variant={isApproval ? "default" : isRejection ? "destructive" : "secondary"}
-                className="text-xs"
-              >
-                {isApproval ? 'Aprovada' : isRejection ? 'Rejeitada' : 'Pendente'}
-              </Badge>
-              
-              {/* Botao fechar */}
+            </div>
+            <div className="flex gap-1">
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={handleDismiss}
-                className="h-6 w-6 p-0 hover:bg-gray-200"
+                className="h-8 w-8 p-0"
+                onClick={handleCheckNow}
+                disabled={loading}
+                title="Atualizar"
               >
-                ✕
+                <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 w-8 p-0"
+                onClick={() => setIsOpen(false)}
+                title="Fechar"
+              >
+                <X className="h-4 w-4" />
               </Button>
             </div>
           </div>
-          
-          {/* Data da notificacao */}
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            🕒 {formatDate(notification.dataNotificacao)}
+
+          {/* Lista de notificações */}
+          <div 
+            className="overflow-y-auto" 
+            style={{ maxHeight }}
+          >
+            {displayNotifications.length === 0 ? (
+              <div className="p-4 text-center text-gray-500">
+                {loading ? 'Carregando notificações...' : 'Nenhuma notificação disponível'}
+              </div>
+            ) : (
+              <ul className="divide-y">
+                {displayNotifications.map((notification) => (
+                  <li 
+                    key={notification.id}
+                    className={`p-3 ${getNotificationBgClass(notification)}`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="flex-shrink-0 pt-0.5">
+                        {getNotificationIcon(notification)}
+                      </div>
+                      <div className="flex-grow min-w-0">
+                        <div className="flex items-center justify-between">
+                          <h4 className="font-medium text-sm">{notification.title}</h4>
+                          <span className="text-xs text-gray-500">
+                            {formatRelativeTime(notification.timestamp)}
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-700 mt-1">{notification.message}</p>
+                        {notification.details?.usuario && (
+                          <p className="text-xs text-gray-500 mt-1">
+                            Por: {notification.details.usuario}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex justify-end gap-2 mt-2">
+                      {!notification.read && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-xs"
+                          onClick={() => handleMarkAsRead(notification.id)}
+                        >
+                          <Check className="h-3 w-3 mr-1" />
+                          Marcar como lida
+                        </Button>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 text-xs"
+                        onClick={() => handleRemove(notification.id)}
+                      >
+                        <X className="h-3 w-3 mr-1" />
+                        Remover
+                      </Button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
-        </CardHeader>
 
-        <CardContent className="space-y-4">
-          {/* Mensagem principal */}
-          <p className="text-sm leading-relaxed">
-            {notification.mensagem}
-          </p>
-
-          {/* Metadados expandiveis */}
-          {notification.metadata && (
-            <div className="space-y-3">
+          {/* Rodapé */}
+          {displayNotifications.length > 0 && (
+            <div className="border-t p-2 flex justify-between items-center">
+              <span className="text-xs text-gray-500">
+                {displayNotifications.length} {displayNotifications.length === 1 ? 'notificação' : 'notificações'}
+              </span>
               <Button
-                variant="ghost"
+                variant="outline"
                 size="sm"
-                onClick={() => setIsExpanded(!isExpanded)}
-                className="text-xs p-2 h-auto"
+                className="h-7 text-xs"
+                onClick={handleMarkAllAsRead}
+                disabled={unreadCount === 0}
               >
-                {isExpanded ? 'Ocultar detalhes' : 'Ver detalhes'} ℹ️
+                Marcar todas como lidas
               </Button>
-
-              {isExpanded && (
-                <div className="border rounded-lg p-3 bg-white/50 space-y-2">
-                  {/* Responsavel */}
-                  {notification.metadata.responsavel && (
-                    <div className="flex items-center gap-2 text-sm">
-                      👤 <span className="font-medium">Responsavel:</span>
-                      <span>{notification.metadata.responsavel}</span>
-                    </div>
-                  )}
-
-                  {/* Motivo da rejeicao */}
-                  {notification.metadata.motivoRejeicao && (
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2 text-sm">
-                        ⚠️ <span className="font-medium text-red-700">Motivo da rejeicao:</span>
-                      </div>
-                      <p className="text-sm text-red-600 ml-6 bg-red-50 p-2 rounded border">
-                        {notification.metadata.motivoRejeicao}
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Observacoes */}
-                  {notification.metadata.observacoes && (
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2 text-sm">
-                        📝 <span className="font-medium">Observacoes:</span>
-                      </div>
-                      <p className="text-sm text-muted-foreground ml-6 bg-gray-50 p-2 rounded border">
-                        {notification.metadata.observacoes}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              )}
             </div>
           )}
 
-          <div className="border-t pt-4">
-            <div className="flex items-center justify-between gap-2">
-              <div className="text-xs text-muted-foreground">
-                ID da Vistoria: {notification.vistoriaId}
-              </div>
-              
-              <div className="flex items-center gap-2">
-                {/* Ver detalhes da vistoria */}
-                <Button
-                  onClick={handleViewDetails}
-                  size="sm"
-                  variant="outline"
-                  className="text-xs"
-                >
-                  👁️ Ver Vistoria
-                </Button>
-
-                {/* Marcar como lida */}
-                {!notification.lida && (
-                  <Button
-                    onClick={handleMarkAsRead}
-                    size="sm"
-                    variant="secondary"
-                    className="text-xs"
-                  >
-                    ✅ Marcar como Lida
-                  </Button>
-                )}
-
-                {/* Acao especifica para rejeicoes */}
-                {isRejection && (
-                  <Button
-                    onClick={handleViewDetails}
-                    size="sm"
-                    className="text-xs bg-red-600 hover:bg-red-700"
-                  >
-                    🔄 Revisar Vistoria
-                  </Button>
-                )}
-              </div>
+          {/* Mensagem de erro */}
+          {error && (
+            <div className="p-2 text-xs text-red-500 border-t">
+              Erro: {error}
             </div>
-          </div>
-        </CardContent>
-      </Card>
+          )}
+        </Card>
+      )}
     </div>
   );
 }

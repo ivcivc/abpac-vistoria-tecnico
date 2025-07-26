@@ -49,6 +49,7 @@ export interface DespesasListResponse {
   despesasAgrupadas?: DespesasAgrupadas[];
   totais?: DespesasTotais;
   error?: string;
+  remessa?: any; // Adicionado para lidar com a remessa
 }
 
 export class DespesasListService {
@@ -81,7 +82,7 @@ export class DespesasListService {
       // Obter despesas do backend usando o DespesaService existente
       const result = await DespesaService.obterDespesas(options.vistoriaId, token);
 
-      if (!result.success || !result.despesas) {
+      if (!result.success) {
         console.error('❌ DespesasListService: Erro ao obter despesas', result.error);
         return {
           success: false,
@@ -89,8 +90,22 @@ export class DespesasListService {
         };
       }
 
+      // Verificar se temos o novo formato com remessa e arquivos
+      const remessa = result.remessa;
+      let despesasBackend: DespesaBackend[] = [];
+      
+      if (result.despesas && Array.isArray(result.despesas)) {
+        despesasBackend = result.despesas;
+      } else {
+        console.warn('⚠️ DespesasListService: Formato inesperado de resposta de despesas');
+        return {
+          success: false,
+          error: 'Formato inesperado de resposta de despesas'
+        };
+      }
+
       // Converter despesas do formato backend para frontend
-      const despesas = result.despesas.map(d => DespesaService.convertFromBackend(d));
+      const despesas = despesasBackend.map(d => DespesaService.convertFromBackend(d));
 
       // Aplicar filtros
       const despesasFiltradas = this.filtrarDespesas(despesas, options);
@@ -103,14 +118,16 @@ export class DespesasListService {
 
       console.log('✅ DespesasListService: Despesas processadas com sucesso', {
         total: despesasFiltradas.length,
-        grupos: despesasAgrupadas.length
+        grupos: despesasAgrupadas.length,
+        remessa: remessa ? 'Presente' : 'Ausente'
       });
 
       return {
         success: true,
         despesas: despesasFiltradas,
         despesasAgrupadas,
-        totais
+        totais,
+        remessa
       };
     } catch (error) {
       console.error('❌ DespesasListService: Erro ao processar despesas', error);

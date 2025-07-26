@@ -84,13 +84,28 @@ export default function TestDespesasPage() {
       addLog('🔄 Chamando DespesaService.obterDespesas...');
       const result = await DespesaService.obterDespesas(vistoriaId, testToken);
       
-      if (result.success && result.despesas) {
-        const despesasConvertidas = result.despesas.map(d => 
-          DespesaService.convertFromBackend(d)
-        );
+      if (result.success) {
+        // Verificar se temos o novo formato com remessa
+        if (result.remessa) {
+          addLog(`✅ Dados da remessa recebidos. ID: ${result.remessa.id}, Status: ${result.remessa.status}`);
+          
+          // Verificar se a remessa tem arquivos
+          if (result.remessa.arquivos && Array.isArray(result.remessa.arquivos)) {
+            addLog(`✅ Arquivos da remessa: ${result.remessa.arquivos.length} arquivo(s)`);
+          }
+        }
         
-        setDespesas(despesasConvertidas);
-        addLog(`✅ ${despesasConvertidas.length} despesas carregadas com sucesso!`);
+        // Processar despesas
+        if (result.despesas && Array.isArray(result.despesas)) {
+          const despesasConvertidas = result.despesas.map(d => 
+            DespesaService.convertFromBackend(d)
+          );
+          
+          setDespesas(despesasConvertidas);
+          addLog(`✅ ${despesasConvertidas.length} despesas carregadas com sucesso!`);
+        } else {
+          addLog('⚠️ Nenhuma despesa encontrada na resposta');
+        }
       } else {
         addLog(`❌ Erro ao carregar despesas: ${result.error || 'Erro desconhecido'}`);
       }
@@ -133,13 +148,39 @@ export default function TestDespesasPage() {
         addLog('✅ Autenticação sem Bearer funcionou!');
         addLog(`✅ Dados recebidos: ${JSON.stringify(data).substring(0, 100)}...`);
         
-        if (data.data && Array.isArray(data.data)) {
-          const despesasConvertidas = data.data.map((d: DespesaBackend) => 
+        // Verificar se temos o novo formato com remessa e arquivos
+        if (data.data && typeof data.data === 'object') {
+          if (data.data.remessa) {
+            addLog(`✅ Dados da remessa recebidos. ID: ${data.data.remessa.id}, Status: ${data.data.remessa.status}`);
+            
+            // Verificar se a remessa tem arquivos
+            if (data.data.remessa.arquivos && Array.isArray(data.data.remessa.arquivos)) {
+              addLog(`✅ Arquivos da remessa: ${data.data.remessa.arquivos.length} arquivo(s)`);
+            }
+          }
+          
+          // Processar despesas
+          const despesasArray = data.data.despesas || data.data;
+          if (Array.isArray(despesasArray)) {
+            const despesasConvertidas = despesasArray.map((d: DespesaBackend) =>
+              DespesaService.convertFromBackend(d)
+            );
+            
+            setDespesas(despesasConvertidas);
+            addLog(`✅ ${despesasConvertidas.length} despesas carregadas com sucesso!`);
+          } else {
+            addLog('⚠️ Formato de resposta inesperado. Não foi possível processar despesas.');
+          }
+        } else if (data.data && Array.isArray(data.data)) {
+          // Formato antigo - apenas array de despesas
+          const despesasConvertidas = data.data.map((d: DespesaBackend) =>
             DespesaService.convertFromBackend(d)
           );
           
           setDespesas(despesasConvertidas);
           addLog(`✅ ${despesasConvertidas.length} despesas carregadas com sucesso!`);
+        } else {
+          addLog('⚠️ Formato de resposta inesperado. Não foi possível processar despesas.');
         }
       } else {
         let errorMsg = `Erro ${response.status}`;

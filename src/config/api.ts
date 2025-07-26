@@ -25,6 +25,15 @@ export const API_CONFIG = {
     // Obter despesas (GET)
     GET_DESPESAS: '/estoque-remessa', // Usar como: GET /api/estoque-remessa/:id/despesas
 
+    // Timeline de status (GET) - Task 20
+    TIMELINE_STATUS: '/estoque-remessa', // Usar como: GET /api/estoque-remessa/:id/timeline-status
+
+    // Aprovar vistoria (POST) - Task 20
+    APPROVE_VISTORIA: '/estoque-remessa', // Usar como: POST /api/estoque-remessa/:id/aprovar
+
+    // Solicitar correção (POST) - Task 20
+    REQUEST_CORRECTION: '/estoque-remessa', // Usar como: POST /api/estoque-remessa/:id/solicitar-correcao
+
     // Health check (se existir)
     HEALTH: '/health',
   },
@@ -136,6 +145,103 @@ export const API_CONFIG = {
  * 
  * MIDDLEWARE: auth
  * CONTROLLER: EstoqueRemessaController.obterDespesasVistoria
+ *
+ *
+ * 6. GET /api/estoque-remessa/:id/timeline-status
+ * ===============================================
+ * Obter timeline de status de uma vistoria
+ * 
+ * MIDDLEWARE: auth
+ * CONTROLLER: EstoqueRemessaController.timelineStatus
+ * 
+ * SUCCESS RESPONSE (200):
+ * {
+ *   "type": true,
+ *   "timeline": [
+ *     {
+ *       "id": 123,
+ *       "status": "Vistoria iniciada",
+ *       "tipo_acao": "INICIO_VISTORIA",
+ *       "data": "2023-07-25T10:00:00.000Z",
+ *       "data_registro": "2023-07-25T10:00:00.000Z",
+ *       "usuario": "João Silva",
+ *       "tecnico_id": 789,
+ *       "tecnico_email": "joao@example.com",
+ *       "icone": "plus-circle"
+ *     },
+ *     {
+ *       "id": 124,
+ *       "status": "Vistoria concluída e enviada para aprovação",
+ *       "tipo_acao": "CONCLUSAO_VISTORIA",
+ *       "data": "2023-07-26T15:30:00.000Z",
+ *       "data_registro": "2023-07-26T15:30:00.000Z",
+ *       "usuario": "João Silva",
+ *       "tecnico_id": 789,
+ *       "tecnico_email": "joao@example.com",
+ *       "icone": "check-all"
+ *     }
+ *   ]
+ * }
+ *
+ * 
+ * 7. POST /api/estoque-remessa/:id/aprovar
+ * =======================================
+ * Aprovar uma vistoria
+ * 
+ * MIDDLEWARE: auth + podeAprovar
+ * VALIDATOR: EstoqueRemessa/AprovarVistoria
+ * CONTROLLER: EstoqueRemessaController.aprovarVistoria
+ * 
+ * REQUEST:
+ * {
+ *   "observacoes": "Observações sobre a aprovação (opcional)"
+ * }
+ * 
+ * SUCCESS RESPONSE (200):
+ * {
+ *   "type": true,
+ *   "data": {
+ *     "id": 123,
+ *     "status": "FINALIZADA",
+ *     "data_aprovacao": "2023-07-27T10:00:00.000Z"
+ *   }
+ * }
+ * 
+ * 
+ * 8. POST /api/estoque-remessa/:id/solicitar-correcao
+ * =================================================
+ * Solicitar correção de itens específicos
+ * 
+ * MIDDLEWARE: auth + podeAprovar
+ * VALIDATOR: EstoqueRemessa/SolicitarCorrecao
+ * CONTROLLER: EstoqueRemessaController.solicitarCorrecaoItens
+ * 
+ * REQUEST:
+ * {
+ *   "itens_correcao": [
+ *     {
+ *       "item_id": 456,
+ *       "motivo": "Foto com baixa qualidade",
+ *       "observacoes": "Por favor, enviar foto com melhor iluminação"
+ *     },
+ *     {
+ *       "item_id": 789,
+ *       "motivo": "Informação incompleta",
+ *       "observacoes": "Faltou informar o número de série do equipamento"
+ *     }
+ *   ]
+ * }
+ * 
+ * SUCCESS RESPONSE (200):
+ * {
+ *   "type": true,
+ *   "data": {
+ *     "id": 123,
+ *     "status": "REQUER_CORRECAO",
+ *     "data_solicitacao_correcao": "2023-07-27T11:30:00.000Z",
+ *     "itens_correcao": [...]
+ *   }
+ * }
  */
 
 /**
@@ -156,6 +262,10 @@ export const API_CONFIG = {
  *
  * - estoque_remessa_despesas (despesas da vistoria)
  *   - id, estoque_remessa_id, valor, descricao, tipo
+ *
+ * - estoque_remessa_log (histórico de ações)
+ *   - id, estoque_remessa_id, tipo_acao, descricao, data_registro
+ *   - tecnico_id, dados_adicionais
  */
 
 export const API_ERRORS = {
@@ -171,6 +281,8 @@ export const API_ERRORS = {
   NOT_FOUND: 'Vistoria não encontrada',
   VALIDATION_ERROR: 'Erro de validação dos dados',
   INTERNAL_ERROR: 'Erro interno do servidor',
+  UNAUTHORIZED: 'Não autorizado a realizar esta ação',
+  FORBIDDEN: 'Permissão negada para esta ação',
 
   // Erros de conectividade (frontend)
   CONNECTION_FAILED: 'Não foi possível conectar ao servidor',

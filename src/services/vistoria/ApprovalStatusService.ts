@@ -1,221 +1,340 @@
 /**
- * Servico para verificar status de aprovacao/rejeicao de vistorias
- * Task 20 - Notificacoes de aprovacao/rejeicao
+ * Serviço para verificação de status de aprovação/rejeição de vistorias
+ * Task 20 - Integração com endpoints reais de notificações
  */
 
-interface ApprovalStatus {
-  vistoriaId: string;
-  status: 'aprovada' | 'rejeitada' | 'pendente' | 'em_analise';
-  dataAlteracao: Date;
-  observacoes?: string;
-  responsavel?: string;
-  motivoRejeicao?: string;
-}
+import { API_CONFIG, buildApiUrl } from '@/config/api';
 
+// Tipos de notificações
+export type NotificationType = 'approval' | 'correction' | 'info';
+
+// Interface para notificações
 export interface ApprovalNotification {
   id: string;
   vistoriaId: string;
-  tipo: 'aprovacao' | 'rejeicao';
-  titulo: string;
-  mensagem: string;
-  dataNotificacao: Date;
-  lida: boolean;
-  metadata?: {
-    responsavel?: string;
-    observacoes?: string;
-    motivoRejeicao?: string;
-  };
+  type: NotificationType;
+  title: string;
+  message: string;
+  timestamp: Date;
+  read: boolean;
+  details?: any;
 }
 
-interface ApprovalCheckResult {
+// Interface para resposta da timeline
+export interface TimelineItem {
+  id: number;
+  status: string;
+  descricao?: string;
+  tipo_acao: string;
+  data: string;
+  data_registro: string;
+  usuario: string;
+  tecnico_id?: number;
+  tecnico_email?: string;
+  item_id?: number;
+  icone: string;
+  dados_adicionais?: any;
+}
+
+// Interface para resposta de verificação
+export interface CheckResponse {
   success: boolean;
-  notifications: ApprovalNotification[];
+  notifications?: ApprovalNotification[];
   error?: string;
 }
 
+// Classe principal do serviço
 export class ApprovalStatusService {
-  private static readonly STORAGE_KEY = 'approval-notifications';
-  private static readonly API_BASE_URL = 'http://localhost:3333';
-
+  // Cache local de notificações
+  private static notifications: ApprovalNotification[] = [];
+  
+  // Última verificação
+  private static lastCheck: Date | null = null;
+  
   /**
-   * Verificar status de aprovacao de vistorias no backend
+   * Verifica o status de aprovação/rejeição de uma vistoria
+   * @param vistoriaId ID da vistoria
+   * @param token Token de autenticação
    */
-  static async checkApprovalStatus(vistoriaIds: string[]): Promise<ApprovalCheckResult> {
+  static async checkApprovalStatus(
+    vistoriaId: string | number,
+    token: string
+  ): Promise<CheckResponse> {
     try {
-      console.log('Verificando status de aprovacao para:', vistoriaIds);
-
-      // Simular verificacao no backend (substituir por chamada real)
-      const notifications = await this.simulateBackendCheck(vistoriaIds);
+      console.log('🔄 ApprovalStatusService: Verificando status da vistoria', vistoriaId);
       
-      // Armazenar notificacoes localmente
-      await this.storeNotifications(notifications);
-
+      // Validar parâmetros
+      if (!vistoriaId) {
+        return {
+          success: false,
+          error: 'ID da vistoria não informado'
+        };
+      }
+      
+      if (!token) {
+        return {
+          success: false,
+          error: 'Token de autenticação não fornecido'
+        };
+      }
+      
+      // Construir URL para a timeline de status
+      const url = buildApiUrl('/estoque-remessa/:id/timeline-status', { id: vistoriaId });
+      console.log('🔄 ApprovalStatusService: URL da requisição:', url);
+      
+      // Fazer requisição
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      // Verificar resposta
+      if (!response.ok) {
+        let errorMessage = `Erro ${response.status}: ${response.statusText}`;
+        
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.message || errorMessage;
+        } catch (e) {
+          // Ignorar erro de parse
+        }
+        
+        throw new Error(errorMessage);
+      }
+      
+      // Processar resposta
+      const data = await response.json();
+      
+      if (!data || !data.type || !data.timeline) {
+        throw new Error('Formato de resposta inválido');
+      }
+      
+      // Processar timeline e gerar notificações
+      const timeline: TimelineItem[] = data.timeline;
+      console.log('📋 ApprovalStatusService: Timeline recebida:', timeline.length, 'itens');
+      
+      // Converter timeline em notificações
+      const notifications = this.processTimeline(timeline, vistoriaId.toString());
+      
+      // Atualizar cache local
+      this.updateLocalCache(notifications);
+      
+      // Atualizar última verificação
+      this.lastCheck = new Date();
+      
       return {
         success: true,
         notifications
       };
     } catch (error) {
-      console.error('Erro ao verificar status:', error);
+      console.error('❌ ApprovalStatusService: Erro ao verificar status', error);
       return {
         success: false,
-        notifications: [],
         error: error instanceof Error ? error.message : 'Erro desconhecido'
       };
     }
   }
-
+  
   /**
-   * Verificar notificacoes pendentes armazenadas localmente
+   * Processa a timeline e extrai notificações relevantes
    */
-  static async getPendingNotifications(): Promise<ApprovalNotification[]> {
-    try {
-      const stored = localStorage.getItem(this.STORAGE_KEY);
-      if (!stored) return [];
-
-      const notifications: ApprovalNotification[] = JSON.parse(stored);
-      
-      // Filtrar apenas notificacoes nao lidas dos ultimos 7 dias
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-
-      return notifications.filter(notification => 
-        !notification.lida && 
-        new Date(notification.dataNotificacao) > sevenDaysAgo
-      );
-    } catch (error) {
-      console.error('Erro ao buscar notificacoes:', error);
-      return [];
-    }
-  }
-
-  /**
-   * Marcar notificacao como lida
-   */
-  static async markAsRead(notificationId: string): Promise<boolean> {
-    try {
-      const stored = localStorage.getItem(this.STORAGE_KEY);
-      if (!stored) return false;
-
-      const notifications: ApprovalNotification[] = JSON.parse(stored);
-      const notification = notifications.find(n => n.id === notificationId);
-      
-      if (notification) {
-        notification.lida = true;
-        localStorage.setItem(this.STORAGE_KEY, JSON.stringify(notifications));
-        console.log('Notificacao marcada como lida:', notificationId);
-        return true;
-      }
-
-      return false;
-    } catch (error) {
-      console.error('Erro ao marcar como lida:', error);
-      return false;
-    }
-  }
-
-  /**
-   * Limpar notificacoes antigas (mais de 30 dias)
-   */
-  static async cleanOldNotifications(): Promise<void> {
-    try {
-      const stored = localStorage.getItem(this.STORAGE_KEY);
-      if (!stored) return;
-
-      const notifications: ApprovalNotification[] = JSON.parse(stored);
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
-      const filteredNotifications = notifications.filter(notification => 
-        new Date(notification.dataNotificacao) > thirtyDaysAgo
-      );
-
-      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(filteredNotifications));
-      console.log('Notificacoes antigas removidas');
-    } catch (error) {
-      console.error('Erro ao limpar notificacoes:', error);
-    }
-  }
-
-  /**
-   * PRIVADO: Simular verificacao no backend
-   */
-  private static async simulateBackendCheck(vistoriaIds: string[]): Promise<ApprovalNotification[]> {
-    // Simular delay de rede
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
+  private static processTimeline(
+    timeline: TimelineItem[],
+    vistoriaId: string
+  ): ApprovalNotification[] {
     const notifications: ApprovalNotification[] = [];
-
-    // Simular algumas aprovacoes/rejeicoes aleatorias para demonstracao
-    vistoriaIds.forEach((vistoriaId, index) => {
-      const random = Math.random();
+    
+    // Filtrar apenas eventos relevantes para notificações
+    timeline.forEach(item => {
+      // Verificar aprovação
+      if (item.tipo_acao === 'APROVACAO_VISTORIA') {
+        notifications.push({
+          id: `approval_${item.id}`,
+          vistoriaId,
+          type: 'approval',
+          title: 'Vistoria Aprovada',
+          message: item.descricao || 'Sua vistoria foi aprovada com sucesso!',
+          timestamp: new Date(item.data_registro),
+          read: false,
+          details: {
+            usuario: item.usuario,
+            data: item.data_registro
+          }
+        });
+      }
       
-      if (random > 0.7) { // 30% de chance de ter uma notificacao
-        const isApproval = random > 0.85; // 15% aprovacao, 15% rejeicao
-        
-        if (isApproval) {
-          notifications.push({
-            id: `approval-${vistoriaId}-${Date.now()}`,
-            vistoriaId,
-            tipo: 'aprovacao',
-            titulo: 'Vistoria Aprovada!',
-            mensagem: `Sua vistoria foi aprovada pela supervisao. Parabens pelo excelente trabalho!`,
-            dataNotificacao: new Date(),
-            lida: false,
-            metadata: {
-              responsavel: 'Supervisor Joao Silva',
-              observacoes: 'Vistoria executada de acordo com os padroes estabelecidos.'
-            }
-          });
-        } else {
-          notifications.push({
-            id: `rejection-${vistoriaId}-${Date.now()}`,
-            vistoriaId,
-            tipo: 'rejeicao',
-            titulo: 'Vistoria Rejeitada',
-            mensagem: `Sua vistoria foi rejeitada e precisa ser revisada. Verifique os pontos destacados.`,
-            dataNotificacao: new Date(),
-            lida: false,
-            metadata: {
-              responsavel: 'Supervisor Maria Santos',
-              motivoRejeicao: 'Evidencias fotograficas insuficientes para alguns itens',
-              observacoes: 'Por favor, refaca as fotos dos equipamentos com melhor iluminacao.'
-            }
-          });
-        }
+      // Verificar solicitação de correção
+      else if (item.tipo_acao === 'SOLICITACAO_CORRECAO') {
+        notifications.push({
+          id: `correction_${item.id}`,
+          vistoriaId,
+          type: 'correction',
+          title: 'Correções Solicitadas',
+          message: item.descricao || 'Foram solicitadas correções na vistoria.',
+          timestamp: new Date(item.data_registro),
+          read: false,
+          details: {
+            usuario: item.usuario,
+            data: item.data_registro,
+            itens_correcao: item.dados_adicionais?.itens_correcao || []
+          }
+        });
+      }
+      
+      // Outros eventos importantes
+      else if (['FINALIZACAO', 'CANCELAMENTO'].includes(item.tipo_acao)) {
+        notifications.push({
+          id: `info_${item.id}`,
+          vistoriaId,
+          type: 'info',
+          title: item.tipo_acao === 'FINALIZACAO' ? 'Vistoria Finalizada' : 'Vistoria Cancelada',
+          message: item.descricao || `Status da vistoria: ${item.status}`,
+          timestamp: new Date(item.data_registro),
+          read: false,
+          details: {
+            usuario: item.usuario,
+            data: item.data_registro
+          }
+        });
       }
     });
-
-    console.log('Simulacao gerou:', notifications);
+    
     return notifications;
   }
-
+  
   /**
-   * PRIVADO: Armazenar notificacoes localmente
+   * Atualiza o cache local de notificações
    */
-  private static async storeNotifications(newNotifications: ApprovalNotification[]): Promise<void> {
-    try {
-      const stored = localStorage.getItem(this.STORAGE_KEY);
-      const existingNotifications: ApprovalNotification[] = stored ? JSON.parse(stored) : [];
-
-      // Combinar notificacoes, evitando duplicatas
-      const allNotifications = [...existingNotifications];
+  private static updateLocalCache(newNotifications: ApprovalNotification[]): void {
+    // Adicionar apenas notificações que não existem no cache
+    newNotifications.forEach(notification => {
+      const existingIndex = this.notifications.findIndex(n => n.id === notification.id);
       
-      newNotifications.forEach(newNotification => {
-        const exists = existingNotifications.some(existing => 
-          existing.id === newNotification.id
-        );
-        
-        if (!exists) {
-          allNotifications.push(newNotification);
-        }
-      });
-
-      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(allNotifications));
-      console.log('Notificacoes armazenadas:', allNotifications.length);
+      if (existingIndex === -1) {
+        // Adicionar nova notificação
+        this.notifications.push(notification);
+      } else {
+        // Manter o status de leitura
+        notification.read = this.notifications[existingIndex].read;
+        // Atualizar notificação existente
+        this.notifications[existingIndex] = notification;
+      }
+    });
+    
+    // Ordenar por data (mais recente primeiro)
+    this.notifications.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+    
+    // Salvar no localStorage
+    this.saveNotificationsToStorage();
+  }
+  
+  /**
+   * Salva notificações no localStorage
+   */
+  private static saveNotificationsToStorage(): void {
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('approval_notifications', JSON.stringify(this.notifications));
+      }
     } catch (error) {
-      console.error('Erro ao armazenar notificacoes:', error);
+      console.error('❌ ApprovalStatusService: Erro ao salvar notificações', error);
     }
   }
+  
+  /**
+   * Carrega notificações do localStorage
+   */
+  static loadNotificationsFromStorage(): void {
+    try {
+      if (typeof window !== 'undefined') {
+        const stored = localStorage.getItem('approval_notifications');
+        
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          
+          // Converter strings de data para objetos Date
+          this.notifications = parsed.map((n: any) => ({
+            ...n,
+            timestamp: new Date(n.timestamp)
+          }));
+          
+          console.log('📋 ApprovalStatusService: Notificações carregadas do storage:', this.notifications.length);
+        }
+      }
+    } catch (error) {
+      console.error('❌ ApprovalStatusService: Erro ao carregar notificações', error);
+    }
+  }
+  
+  /**
+   * Obtém todas as notificações
+   */
+  static getNotifications(): ApprovalNotification[] {
+    // Carregar do storage se não houver notificações em memória
+    if (this.notifications.length === 0) {
+      this.loadNotificationsFromStorage();
+    }
+    
+    return [...this.notifications];
+  }
+  
+  /**
+   * Obtém notificações não lidas
+   */
+  static getUnreadNotifications(): ApprovalNotification[] {
+    return this.getNotifications().filter(n => !n.read);
+  }
+  
+  /**
+   * Marca uma notificação como lida
+   */
+  static markAsRead(notificationId: string): void {
+    const notification = this.notifications.find(n => n.id === notificationId);
+    
+    if (notification) {
+      notification.read = true;
+      this.saveNotificationsToStorage();
+    }
+  }
+  
+  /**
+   * Marca todas as notificações como lidas
+   */
+  static markAllAsRead(): void {
+    this.notifications.forEach(n => n.read = true);
+    this.saveNotificationsToStorage();
+  }
+  
+  /**
+   * Remove uma notificação
+   */
+  static removeNotification(notificationId: string): void {
+    this.notifications = this.notifications.filter(n => n.id !== notificationId);
+    this.saveNotificationsToStorage();
+  }
+  
+  /**
+   * Limpa todas as notificações
+   */
+  static clearAllNotifications(): void {
+    this.notifications = [];
+    this.saveNotificationsToStorage();
+  }
+  
+  /**
+   * Verifica se é necessário fazer uma nova verificação
+   * @param minInterval Intervalo mínimo em minutos
+   */
+  static shouldCheck(minInterval: number = 5): boolean {
+    if (!this.lastCheck) return true;
+    
+    const now = new Date();
+    const diffMs = now.getTime() - this.lastCheck.getTime();
+    const diffMinutes = diffMs / (1000 * 60);
+    
+    return diffMinutes >= minInterval;
+  }
 }
-
-export type { ApprovalStatus, ApprovalCheckResult };

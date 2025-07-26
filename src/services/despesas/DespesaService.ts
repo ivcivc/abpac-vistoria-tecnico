@@ -21,6 +21,20 @@ export interface DespesaBackend {
   arquivo_id?: number;
   created_at?: string;
   updated_at?: string;
+  arquivo?: {
+    id: number;
+    nome: string;
+    caminho?: string;
+    url?: string;
+    tipo?: string;
+    subtipo?: string;
+    tamanho?: number;
+    mime_type?: string;
+    referencia?: string;
+    descricao?: string;
+    created_at?: string;
+    updated_at?: string;
+  };
 }
 
 export interface DespesaResponse {
@@ -143,7 +157,7 @@ export class DespesaService {
   static async obterDespesas(
     vistoriaId: string | number,
     token?: string
-  ): Promise<{ success: boolean; despesas?: DespesaBackend[]; error?: string }> {
+  ): Promise<{ success: boolean; despesas?: DespesaBackend[]; remessa?: any; error?: string }> {
     try {
       console.log('🔄 DespesaService: Obtendo despesas da vistoria', vistoriaId);
 
@@ -227,11 +241,19 @@ export class DespesaService {
           throw new Error(data.message || 'Resposta inválida do servidor');
         }
 
-        console.log('✅ DespesaService: Despesas obtidas com sucesso', data);
+        // Verificar se a resposta contém o novo formato com remessa e despesas
+        const despesas = data.data.despesas || data.data || [];
+        const remessa = data.data.remessa || null;
+
+        console.log('✅ DespesaService: Despesas obtidas com sucesso', {
+          despesas: despesas.length,
+          remessa: remessa ? 'Presente' : 'Ausente'
+        });
 
         return {
           success: true,
-          despesas: data.data || []
+          despesas,
+          remessa
         };
       } catch (fetchError) {
         // Capturar erros específicos do fetch
@@ -266,7 +288,7 @@ export class DespesaService {
       descricao: despesaBackend.descricao,
       timestamp: despesaBackend.created_at ? new Date(despesaBackend.created_at) : new Date(),
       aprovada: despesaBackend.aprovada || false,
-      // Se tiver arquivo_id, criar um objeto de evidência básico
+      // Se tiver arquivo_id ou arquivos, criar um objeto de evidência básico
       comprovante: despesaBackend.arquivo_id ? {
         id: `arquivo_${despesaBackend.arquivo_id}`,
         itemId: despesaBackend.estoque_remessa_item_id?.toString() || '',
@@ -277,7 +299,17 @@ export class DespesaService {
         timestamp: new Date(),
         tipoEvidencia: 'outro',
         descricao: 'Comprovante de despesa'
-      } : undefined
+      } : (despesaBackend.arquivo ? {
+        id: `arquivo_${despesaBackend.arquivo.id}`,
+        itemId: despesaBackend.estoque_remessa_item_id?.toString() || '',
+        tipo: 'foto',
+        url: despesaBackend.arquivo.url || `/api/arquivos/${despesaBackend.arquivo.id}`,
+        localUrl: despesaBackend.arquivo.url || `/api/arquivos/${despesaBackend.arquivo.id}`,
+        tamanho: despesaBackend.arquivo.tamanho || 0,
+        timestamp: new Date(),
+        tipoEvidencia: 'outro',
+        descricao: despesaBackend.arquivo.nome || 'Comprovante de despesa'
+      } : undefined)
     };
   }
 

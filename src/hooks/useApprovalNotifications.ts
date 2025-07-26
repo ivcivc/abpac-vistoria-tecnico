@@ -1,176 +1,152 @@
 import { useState, useEffect, useCallback } from 'react';
-import { 
-  ApprovalStatusService, 
-  ApprovalNotification, 
-  ApprovalCheckResult 
-} from '@/services/vistoria/ApprovalStatusService';
+import { ApprovalStatusService, ApprovalNotification } from '@/services/vistoria/ApprovalStatusService';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface UseApprovalNotificationsProps {
-  vistoriaIds: string[];
+  vistoriaId?: string | null;
+  checkInterval?: number; // em minutos
   autoCheck?: boolean;
-  checkInterval?: number;
-}
-
-interface UseApprovalNotificationsReturn {
-  notifications: ApprovalNotification[];
-  unreadCount: number;
-  loading: boolean;
-  error: string | null;
-  checkNow: () => Promise<void>;
-  markAsRead: (notificationId: string) => Promise<void>;
-  dismissNotification: (notificationId: string) => void;
-  clearAll: () => Promise<void>;
 }
 
 /**
- * Hook para gerenciar notificacoes de aprovacao/rejeicao de vistorias
- * Task 20 - Notificacoes de aprovacao/rejeicao
+ * Hook para gerenciar notificações de aprovação/rejeição de vistorias
  */
 export function useApprovalNotifications({
-  vistoriaIds,
-  autoCheck = true,
-  checkInterval = 300000 // 5 minutos
-}: UseApprovalNotificationsProps): UseApprovalNotificationsReturn {
+  vistoriaId = null,
+  checkInterval = 5,
+  autoCheck = true
+}: UseApprovalNotificationsProps = {}) {
+  // Estados
   const [notifications, setNotifications] = useState<ApprovalNotification[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [unreadCount, setUnreadCount] = useState<number>(0);
+  const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [lastChecked, setLastChecked] = useState<Date | null>(null);
 
-  // Carregar notificacoes pendentes do armazenamento local
-  const loadPendingNotifications = useCallback(async () => {
+  // Contexto de autenticação
+  const { token } = useAuth().authState;
+
+  // Função para carregar notificações do cache local
+  const loadNotifications = useCallback(() => {
     try {
-      const pending = await ApprovalStatusService.getPendingNotifications();
-      setNotifications(pending);
-      console.log('Notificacoes carregadas:', pending.length);
-    } catch (err) {
-      console.error('Erro ao carregar notificacoes:', err);
-      setError(err instanceof Error ? err.message : 'Erro ao carregar notificacoes');
+      const allNotifications = ApprovalStatusService.getNotifications();
+      
+      // Filtrar por vistoriaId se fornecido
+      const filteredNotifications = vistoriaId 
+        ? allNotifications.filter(n => n.vistoriaId === vistoriaId)
+        : allNotifications;
+      
+      setNotifications(filteredNotifications);
+      setUnreadCount(filteredNotifications.filter(n => !n.read).length);
+      
+      return filteredNotifications;
+    } catch (error) {
+      console.error('❌ useApprovalNotifications: Erro ao carregar notificações', error);
+      setError('Erro ao carregar notificações');
+      return [];
     }
-  }, []);
+  }, [vistoriaId]);
 
-  // Verificar status de aprovacao no backend
-  const checkNow = useCallback(async () => {
-    if (vistoriaIds.length === 0) {
-      console.log('Nenhuma vistoria para verificar');
+  // Função para verificar novas notificações
+  const checkForNotifications = useCallback(async () => {
+    if (!token || (vistoriaId === null && !notifications.length)) {
+      console.log('⚠️ useApprovalNotifications: Token ou vistoriaId não disponível');
       return;
     }
 
-    setLoading(true);
-    setError(null);
-
     try {
-      console.log('Verificando aprovacoes para:', vistoriaIds);
+      setLoading(true);
+      setError(null);
       
-      const result: ApprovalCheckResult = await ApprovalStatusService.checkApprovalStatus(vistoriaIds);
-      
-      if (result.success) {
-        // Recarregar notificacoes pendentes apos verificacao
-        await loadPendingNotifications();
+      // Se temos um vistoriaId específico, verificar apenas essa vistoria
+      if (vistoriaId) {
+        console.log('🔄 useApprovalNotifications: Verificando notificações para vistoria', vistoriaId);
+        await ApprovalStatusService.checkApprovalStatus(vistoriaId, token);
+      } 
+      // Caso contrário, verificar todas as vistorias que já temos notificações
+      else {
+        // Obter IDs únicos de vistorias das notificações existentes
+        const vistoriaIds = [...new Set(notifications.map(n => n.vistoriaId))];
         
-        if (result.notifications.length > 0) {
-          console.log('Novas notificacoes encontradas:', result.notifications.length);
+        if (vistoriaIds.length > 0) {
+          console.log('🔄 useApprovalNotifications: Verificando notificações para múltiplas vistorias', vistoriaIds);
+          
+          // Verificar cada vistoria individualmente
+          for (const id of vistoriaIds) {
+            await ApprovalStatusService.checkApprovalStatus(id, token);
+          }
         }
-      } else {
-        setError(result.error || 'Erro ao verificar status de aprovacao');
       }
-    } catch (err) {
-      console.error('Erro na verificacao:', err);
-      setError(err instanceof Error ? err.message : 'Erro na verificacao');
+      
+      // Atualizar estado com notificações do cache
+      const updatedNotifications = loadNotifications();
+      console.log('✅ useApprovalNotifications: Notificações atualizadas', updatedNotifications.length);
+      
+      setLastChecked(new Date());
+    } catch (error) {
+      console.error('❌ useApprovalNotifications: Erro ao verificar notificações', error);
+      setError(error instanceof Error ? error.message : 'Erro ao verificar notificações');
     } finally {
       setLoading(false);
     }
-  }, [vistoriaIds, loadPendingNotifications]);
+  }, [token, vistoriaId, notifications, loadNotifications]);
 
-  // Marcar notificacao como lida
-  const markAsRead = useCallback(async (notificationId: string) => {
-    try {
-      const success = await ApprovalStatusService.markAsRead(notificationId);
-      if (success) {
-        setNotifications(prev => 
-          prev.map(notification => 
-            notification.id === notificationId 
-              ? { ...notification, lida: true }
-              : notification
-          )
-        );
-        console.log('Notificacao marcada como lida:', notificationId);
+  // Marcar notificação como lida
+  const markAsRead = useCallback((notificationId: string) => {
+    ApprovalStatusService.markAsRead(notificationId);
+    loadNotifications();
+  }, [loadNotifications]);
+
+  // Marcar todas como lidas
+  const markAllAsRead = useCallback(() => {
+    ApprovalStatusService.markAllAsRead();
+    loadNotifications();
+  }, [loadNotifications]);
+
+  // Remover notificação
+  const removeNotification = useCallback((notificationId: string) => {
+    ApprovalStatusService.removeNotification(notificationId);
+    loadNotifications();
+  }, [loadNotifications]);
+
+  // Limpar todas as notificações
+  const clearAllNotifications = useCallback(() => {
+    ApprovalStatusService.clearAllNotifications();
+    loadNotifications();
+  }, [loadNotifications]);
+
+  // Efeito para carregar notificações iniciais
+  useEffect(() => {
+    loadNotifications();
+  }, [loadNotifications]);
+
+  // Efeito para verificação automática periódica
+  useEffect(() => {
+    if (!autoCheck || !token) return;
+
+    // Verificar imediatamente na primeira vez
+    checkForNotifications();
+
+    // Configurar verificação periódica
+    const intervalId = setInterval(() => {
+      if (ApprovalStatusService.shouldCheck(checkInterval)) {
+        checkForNotifications();
       }
-    } catch (err) {
-      console.error('Erro ao marcar como lida:', err);
-    }
-  }, []);
+    }, checkInterval * 60 * 1000); // Converter minutos para milissegundos
 
-  // Remover notificacao da lista (dismiss)
-  const dismissNotification = useCallback((notificationId: string) => {
-    setNotifications(prev => prev.filter(n => n.id !== notificationId));
-    console.log('Notificacao removida:', notificationId);
-  }, []);
-
-  // Limpar todas as notificacoes
-  const clearAll = useCallback(async () => {
-    try {
-      // Marcar todas como lidas
-      await Promise.all(
-        notifications
-          .filter(n => !n.lida)
-          .map(n => ApprovalStatusService.markAsRead(n.id))
-      );
-      
-      // Limpar lista local
-      setNotifications([]);
-      
-      console.log('Todas as notificacoes foram limpas');
-    } catch (err) {
-      console.error('Erro ao limpar notificacoes:', err);
-    }
-  }, [notifications]);
-
-  // Calcular contagem de nao lidas
-  const unreadCount = notifications.filter(n => !n.lida).length;
-
-  // Carregar notificacoes pendentes na inicializacao
-  useEffect(() => {
-    loadPendingNotifications();
-  }, [loadPendingNotifications]);
-
-  // Configurar verificacao automatica
-  useEffect(() => {
-    if (!autoCheck || vistoriaIds.length === 0) return;
-
-    // Verificacao inicial
-    checkNow();
-
-    // Configurar verificacao periodica
-    const interval = setInterval(() => {
-      if (navigator.onLine) { // So verificar se estiver online
-        checkNow();
-      }
-    }, checkInterval);
-
-    console.log(`Verificacao automatica configurada (${checkInterval / 1000}s)`);
-
-    return () => {
-      clearInterval(interval);
-      console.log('Verificacao automatica parada');
-    };
-  }, [autoCheck, checkInterval, vistoriaIds, checkNow]);
-
-  // Limpeza de notificacoes antigas periodicamente
-  useEffect(() => {
-    const cleanupInterval = setInterval(() => {
-      ApprovalStatusService.cleanOldNotifications();
-    }, 24 * 60 * 60 * 1000); // Uma vez por dia
-
-    return () => clearInterval(cleanupInterval);
-  }, []);
+    return () => clearInterval(intervalId);
+  }, [autoCheck, token, checkInterval, checkForNotifications]);
 
   return {
     notifications,
     unreadCount,
     loading,
     error,
-    checkNow,
+    lastChecked,
+    checkForNotifications,
     markAsRead,
-    dismissNotification,
-    clearAll
+    markAllAsRead,
+    removeNotification,
+    clearAllNotifications
   };
 }
