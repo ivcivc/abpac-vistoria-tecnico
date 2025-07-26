@@ -12,6 +12,7 @@ import { StatusBadge } from './StatusBadge';
 import { MediaCapture, MediaFile } from '@/components/media/MediaCapture';
 import { DespesaForm } from '@/components/despesas';
 import { Despesa } from '@/types/storage';
+import { UploadService } from '@/services/uploadService';
 import { 
   Save, 
   CheckCircle, 
@@ -48,6 +49,10 @@ export function ItemDetail({ item, readOnly, onUpdate }: ItemDetailProps) {
   const [fotosNumeroSerie, setFotosNumeroSerie] = useState<MediaFile[]>([]);
   const [fotosLocalInstalacao, setFotosLocalInstalacao] = useState<MediaFile[]>([]);
   const [fotosOutrasEvidencias, setFotosOutrasEvidencias] = useState<MediaFile[]>([]);
+  
+  // Estados para upload
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
   
   // Estados para despesas
   const [despesas, setDespesas] = useState<Despesa[]>(item.despesas || []);
@@ -161,27 +166,128 @@ export function ItemDetail({ item, readOnly, onUpdate }: ItemDetailProps) {
     return true;
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!validateItem()) {
       return;
     }
 
-    // Quando salvar, automaticamente marca como CONCLUIDO
-    const updatedItem = {
-      ...editedItem,
-      status: 'CONCLUIDO',
-      concluido: true,
-      dataConclusao: new Date(),
-      // Salvar referências das fotos capturadas
-      fotos_numero_serie: fotosNumeroSerie,
-      fotos_local_instalacao: fotosLocalInstalacao,
-      fotos_outras_evidencias: fotosOutrasEvidencias,
-      // Salvar despesas
-      despesas: despesas
-    } as any;
+    setIsUploading(true);
+    setUploadProgress({});
 
-    onUpdate(updatedItem);
-    setHasChanges(false);
+    try {
+      console.log('🔄 ItemDetail: Iniciando salvamento com upload de evidências');
+
+      // Fazer upload das evidências
+      const [
+        numeroSerieUploaded,
+        localInstalacaoUploaded,
+        outrasEvidenciasUploaded
+      ] = await Promise.all([
+        // Upload fotos do número de série
+        fotosNumeroSerie.length > 0 ? 
+          UploadService.processMediaFiles(fotosNumeroSerie, {
+            tipo: 'evidencia',
+            referencia: `item_${item.id}_numero_serie`,
+            onProgress: (fileIndex, progress) => {
+              setUploadProgress(prev => ({
+                ...prev,
+                [`numero_serie_${fileIndex}`]: progress.percentage
+              }));
+            }
+          }) : Promise.resolve([]),
+        
+        // Upload fotos do local de instalação
+        fotosLocalInstalacao.length > 0 ?
+          UploadService.processMediaFiles(fotosLocalInstalacao, {
+            tipo: 'evidencia',
+            referencia: `item_${item.id}_local_instalacao`,
+            onProgress: (fileIndex, progress) => {
+              setUploadProgress(prev => ({
+                ...prev,
+                [`local_instalacao_${fileIndex}`]: progress.percentage
+              }));
+            }
+          }) : Promise.resolve([]),
+        
+        // Upload outras evidências
+        fotosOutrasEvidencias.length > 0 ?
+          UploadService.processMediaFiles(fotosOutrasEvidencias, {
+            tipo: 'evidencia', 
+            referencia: `item_${item.id}_outras`,
+            onProgress: (fileIndex, progress) => {
+              setUploadProgress(prev => ({
+                ...prev,
+                [`outras_${fileIndex}`]: progress.percentage
+              }));
+            }
+          }) : Promise.resolve([])
+      ]);
+
+      console.log('✅ ItemDetail: Uploads concluídos', {
+        numeroSerie: numeroSerieUploaded.length,
+        localInstalacao: localInstalacaoUploaded.length,
+        outras: outrasEvidenciasUploaded.length
+      });
+
+      // Criar estrutura fotos_videos para o backend (campo JSON)
+      const fotosVideosBackend = [
+        ...numeroSerieUploaded,
+        ...localInstalacaoUploaded,
+        ...outrasEvidenciasUploaded
+      ];
+
+      // Quando salvar, automaticamente marca como CONCLUIDO
+      const updatedItem = {
+        ...editedItem,
+        status: 'CONCLUIDO',
+        concluido: true,
+        dataConclusao: new Date(),
+        // Campo fotos_videos usado pelo backend (JSON)
+        fotos_videos: fotosVideosBackend,
+        // Manter referências locais para compatibilidade
+        fotos_numero_serie: fotosNumeroSerie,
+        fotos_local_instalacao: fotosLocalInstalacao,
+        fotos_outras_evidencias: fotosOutrasEvidencias,
+        // Salvar despesas
+        despesas: despesas
+      } as any;
+
+      onUpdate(updatedItem);
+      setHasChanges(false);
+      
+      console.log('✅ ItemDetail: Item salvo com evidências no backend', {
+        itemId: item.id,
+        evidenciasBackend: fotosVideosBackend.length,
+        evidenciasLocais: fotosNumeroSerie.length + fotosLocalInstalacao.length + fotosOutrasEvidencias.length
+      });
+
+    } catch (error) {
+      console.error('❌ ItemDetail: Erro durante upload de evidências', error);
+      
+      // Salvar mesmo com erro de upload (para não perder dados)
+      const updatedItem = {
+        ...editedItem,
+        status: 'CONCLUIDO',
+        concluido: true,
+        dataConclusao: new Date(),
+        // Manter apenas referências locais se upload falhou
+        fotos_numero_serie: fotosNumeroSerie,
+        fotos_local_instalacao: fotosLocalInstalacao,
+        fotos_outras_evidencias: fotosOutrasEvidencias,
+        despesas: despesas,
+        // Marcar que houve erro no upload
+        upload_error: error instanceof Error ? error.message : 'Erro no upload'
+      } as any;
+
+      onUpdate(updatedItem);
+      setHasChanges(false);
+      
+      alert('Erro no upload das evidências, mas os dados foram salvos localmente. As evidências serão enviadas na próxima sincronização.');
+      
+    } finally {
+      setIsUploading(false);
+      setUploadProgress({});
+    }
   };
 
   const copyToExecuted = (plannedField: string, executedField: string) => {
@@ -617,6 +723,41 @@ export function ItemDetail({ item, readOnly, onUpdate }: ItemDetailProps) {
         </CardContent>
       </Card>
 
+      {/* INDICADOR DE PROGRESSO DE UPLOAD */}
+      {isUploading && Object.keys(uploadProgress).length > 0 && (
+        <Card className="border-blue-200 bg-blue-50">
+          <CardContent className="pt-6">
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 text-blue-800">
+                <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                <span className="font-medium">Enviando evidências para o servidor...</span>
+              </div>
+              
+              <div className="space-y-2">
+                {Object.entries(uploadProgress).map(([key, progress]) => (
+                  <div key={key} className="space-y-1">
+                    <div className="flex justify-between text-xs text-blue-700">
+                      <span>
+                        {key.includes('numero_serie') ? 'Número de Série' :
+                         key.includes('local_instalacao') ? 'Local de Instalação' :
+                         'Outras Evidências'} {key.split('_').pop()}
+                      </span>
+                      <span>{progress}%</span>
+                    </div>
+                    <div className="w-full bg-blue-200 rounded-full h-2">
+                      <div 
+                        className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                        style={{ width: `${progress}%` }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* DESPESAS DO ITEM */}
       <Card>
         <CardHeader>
@@ -757,11 +898,23 @@ export function ItemDetail({ item, readOnly, onUpdate }: ItemDetailProps) {
         <div className="flex gap-3 sticky bottom-4 bg-white p-4 border rounded-lg shadow-lg">
           <Button
             onClick={handleSave}
-            disabled={!hasChanges || !isFormValid()}
+            disabled={!hasChanges || !isFormValid() || isUploading}
             className="flex-1 bg-green-600 hover:bg-green-700"
           >
-            <CheckCircle className="w-4 h-4 mr-2" />
-            Salvar e Concluir Item
+            {isUploading ? (
+              <>
+                <div className="w-4 h-4 mr-2 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                {Object.keys(uploadProgress).length > 0 ? 
+                  `Enviando evidências... (${Math.round(Object.values(uploadProgress).reduce((acc, val) => acc + val, 0) / Object.values(uploadProgress).length)}%)` :
+                  'Salvando...'
+                }
+              </>
+            ) : (
+              <>
+                <CheckCircle className="w-4 h-4 mr-2" />
+                Salvar e Concluir Item
+              </>
+            )}
           </Button>
         </div>
       )}
