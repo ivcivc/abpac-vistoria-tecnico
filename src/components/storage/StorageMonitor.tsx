@@ -22,7 +22,7 @@ interface StorageMonitorProps {
   refreshInterval?: number; // em segundos
 }
 
-export function StorageMonitor({
+function StorageMonitorComponent({
   className = '',
   showSettings = true,
   showActions = true,
@@ -403,4 +403,10 @@ export function StorageMonitor({
       )}
     </Card>
   );
-} 
+}
+
+// Exportar como default para funcionar com dynamic import
+export default StorageMonitorComponent;
+
+// Manter a exportação nomeada para compatibilidade com código existente
+export { StorageMonitorComponent as StorageMonitor }; 

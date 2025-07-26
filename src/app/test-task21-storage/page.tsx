@@ -9,7 +9,7 @@ import { AlertCircle, CheckCircle, Database, HardDrive, Trash2 } from 'lucide-re
 
 // Importar StorageMonitor com dynamic para evitar erros de SSR
 const StorageMonitor = dynamic(
-  () => import('@/components/storage/StorageMonitor').then(mod => ({ default: mod.StorageMonitor })),
+  () => import('@/components/storage/StorageMonitor'),
   { ssr: false }
 );
 
