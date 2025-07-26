@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { DespesaForm } from '@/components/despesas/DespesaForm';
 import { DespesasList } from '@/components/despesas/DespesasList';
-import { DespesaService } from '@/services/despesas/DespesaService';
+import { DespesaService, DespesaBackend } from '@/services/despesas/DespesaService';
 import { Despesa } from '@/types/storage';
 import { 
   Receipt, 
@@ -96,6 +96,63 @@ export default function TestDespesasPage() {
       }
     } catch (error) {
       addLog(`❌ Exceção ao carregar despesas: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+      console.error('Erro detalhado:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Testar autenticação sem prefixo Bearer
+  const testarAutenticacaoSimples = async () => {
+    if (!testToken) {
+      addLog('❌ Sem token de autenticação. Não é possível testar.');
+      return;
+    }
+    
+    setIsLoading(true);
+    addLog('🔄 Testando autenticação sem prefixo Bearer...');
+    
+    try {
+      // Construir URL
+      const url = `http://localhost:3333/api/estoque-remessa/${vistoriaId}/despesas`;
+      addLog(`🔄 URL: ${url}`);
+      
+      // Fazer requisição direta sem o prefixo Bearer
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': testToken // Sem prefixo Bearer
+        }
+      });
+      
+      addLog(`🔄 Status da resposta: ${response.status}`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        addLog('✅ Autenticação sem Bearer funcionou!');
+        addLog(`✅ Dados recebidos: ${JSON.stringify(data).substring(0, 100)}...`);
+        
+        if (data.data && Array.isArray(data.data)) {
+          const despesasConvertidas = data.data.map((d: DespesaBackend) => 
+            DespesaService.convertFromBackend(d)
+          );
+          
+          setDespesas(despesasConvertidas);
+          addLog(`✅ ${despesasConvertidas.length} despesas carregadas com sucesso!`);
+        }
+      } else {
+        let errorMsg = `Erro ${response.status}`;
+        try {
+          const errorData = await response.json();
+          errorMsg += `: ${errorData.message || errorData.error || JSON.stringify(errorData)}`;
+        } catch (e) {
+          errorMsg += `: ${response.statusText}`;
+        }
+        addLog(`❌ Falha na autenticação sem Bearer: ${errorMsg}`);
+      }
+    } catch (error) {
+      addLog(`❌ Exceção ao testar autenticação: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
       console.error('Erro detalhado:', error);
     } finally {
       setIsLoading(false);
@@ -296,6 +353,16 @@ export default function TestDespesasPage() {
                 )}
                 Recarregar Despesas
               </Button>
+              
+              <Button
+                onClick={testarAutenticacaoSimples}
+                disabled={!testToken || isLoading}
+                variant="outline"
+                className="flex items-center gap-2 bg-yellow-50 hover:bg-yellow-100"
+              >
+                <Key className="w-4 h-4" />
+                Testar Auth Sem Bearer
+              </Button>
             </div>
             
             {!testToken && (
@@ -304,6 +371,18 @@ export default function TestDespesasPage() {
                   <AlertCircle className="w-4 h-4" />
                   Defina um token de autenticação para testar a integração com o backend.
                 </p>
+              </div>
+            )}
+            
+            {testToken && (
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-sm font-medium text-blue-800 mb-1">Informações do Token:</p>
+                <div className="text-xs text-blue-700 space-y-1">
+                  <p>• Comprimento: {testToken.length} caracteres</p>
+                  <p>• Formato: {testToken.includes('.') ? 'Possível JWT' : 'String simples'}</p>
+                  <p>• Início: {testToken.substring(0, 15)}...</p>
+                  <p>• Final: ...{testToken.substring(testToken.length - 15)}</p>
+                </div>
               </div>
             )}
           </CardContent>

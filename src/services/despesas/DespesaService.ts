@@ -157,21 +157,42 @@ export class DespesaService {
       }
 
       // Construir URL correta usando o endpoint definido na configuração
+      // Importante: Verificar se a URL está correta para o endpoint
       const url = buildApiUrl(API_CONFIG.ENDPOINTS.GET_DESPESAS, { id: vistoriaId }) + '/despesas';
       console.log('🔄 DespesaService: URL da requisição:', url);
 
       // Configurar headers
+      // Importante: Verificar se o formato do token está correto
+      // Alguns backends esperam "Bearer TOKEN", outros apenas "TOKEN"
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`
       };
 
+      console.log('🔄 DespesaService: Headers da requisição:', JSON.stringify(headers, null, 2));
+
       // Fazer requisição com tratamento de erros melhorado
       try {
-        const response = await fetch(url, {
+        // Tentar primeiro com o formato "Bearer TOKEN"
+        let response = await fetch(url, {
           method: 'GET',
           headers
         });
+
+        // Se receber 401, tentar sem o prefixo "Bearer"
+        if (response.status === 401) {
+          console.log('🔄 DespesaService: Tentando autenticação sem prefixo Bearer');
+          
+          const headersSimples = {
+            'Content-Type': 'application/json',
+            'Authorization': token
+          };
+          
+          response = await fetch(url, {
+            method: 'GET',
+            headers: headersSimples
+          });
+        }
 
         // Verificar erros de autenticação primeiro
         if (response.status === 401) {
