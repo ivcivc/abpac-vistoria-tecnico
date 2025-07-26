@@ -77,65 +77,119 @@ export class ApprovalStatusService {
           error: 'Token de autenticação não fornecido'
         };
       }
+
+      // Limpar o token (remover "Bearer " se presente)
+      const cleanToken = token.trim().replace(/^Bearer\s+/i, '');
+      console.log('🔑 ApprovalStatusService: Token preparado para autenticação');
       
       // Construir URL para a timeline de status
       const url = buildApiUrl('/estoque-remessa/:id/timeline-status', { id: vistoriaId });
       console.log('🔄 ApprovalStatusService: URL da requisição:', url);
       
-      // Fazer requisição
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+      // Primeiro, tentar com o formato "Bearer token"
+      try {
+        console.log('🔄 ApprovalStatusService: Tentando com formato "Bearer token"');
+        const result = await this.makeTimelineRequest(url, `Bearer ${cleanToken}`, vistoriaId.toString());
+        return result;
+      } catch (error) {
+        // Se falhar com "Bearer", tentar com o token direto
+        if (error instanceof Error && error.message.includes('401')) {
+          console.log('🔄 ApprovalStatusService: Formato Bearer falhou, tentando com token direto');
+          try {
+            const result = await this.makeTimelineRequest(url, cleanToken, vistoriaId.toString());
+            return result;
+          } catch (innerError) {
+            throw innerError; // Se ambos falharem, propagar o erro interno
+          }
+        } else {
+          throw error; // Se não for erro 401, propagar o erro original
         }
-      });
-      
-      // Verificar resposta
-      if (!response.ok) {
-        let errorMessage = `Erro ${response.status}: ${response.statusText}`;
-        
-        try {
-          const errorData = await response.json();
-          errorMessage = errorData.message || errorMessage;
-        } catch (e) {
-          // Ignorar erro de parse
-        }
-        
-        throw new Error(errorMessage);
       }
-      
-      // Processar resposta
-      const data = await response.json();
-      
-      if (!data || !data.type || !data.timeline) {
-        throw new Error('Formato de resposta inválido');
-      }
-      
-      // Processar timeline e gerar notificações
-      const timeline: TimelineItem[] = data.timeline;
-      console.log('📋 ApprovalStatusService: Timeline recebida:', timeline.length, 'itens');
-      
-      // Converter timeline em notificações
-      const notifications = this.processTimeline(timeline, vistoriaId.toString());
-      
-      // Atualizar cache local
-      this.updateLocalCache(notifications);
-      
-      // Atualizar última verificação
-      this.lastCheck = new Date();
-      
-      return {
-        success: true,
-        notifications
-      };
     } catch (error) {
       console.error('❌ ApprovalStatusService: Erro ao verificar status', error);
+      
+      // Melhorar mensagem de erro para 401
+      if (error instanceof Error && error.message.includes('401')) {
+        return {
+          success: false,
+          error: 'Não autorizado: Verifique se o token é válido e se você tem permissão para acessar este recurso'
+        };
+      }
+      
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Erro desconhecido'
       };
     }
+  }
+
+  /**
+   * Faz a requisição para a timeline
+   * @param url URL da requisição
+   * @param authHeader Cabeçalho de autenticação
+   * @param vistoriaId ID da vistoria
+   */
+  private static async makeTimelineRequest(
+    url: string, 
+    authHeader: string,
+    vistoriaId: string | number
+  ): Promise<CheckResponse> {
+    // Fazer requisição
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': authHeader
+      }
+    });
+    
+    // Verificar resposta
+    if (!response.ok) {
+      let errorMessage = `Erro ${response.status}: ${response.statusText}`;
+      
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.message || errorMessage;
+      } catch (e) {
+        // Ignorar erro de parse
+      }
+      
+      throw new Error(errorMessage);
+    }
+    
+    // Processar resposta
+    const data = await response.json();
+    
+    if (!data || !data.type) {
+      throw new Error('Formato de resposta inválido');
+    }
+    
+    // Se não tiver timeline, retornar lista vazia
+    if (!data.timeline || !Array.isArray(data.timeline)) {
+      console.warn('⚠️ ApprovalStatusService: Resposta sem timeline ou formato inválido');
+      return {
+        success: true,
+        notifications: []
+      };
+    }
+    
+    // Processar timeline e gerar notificações
+    const timeline: TimelineItem[] = data.timeline;
+    console.log('📋 ApprovalStatusService: Timeline recebida:', timeline.length, 'itens');
+    
+    // Converter timeline em notificações
+    const notifications = this.processTimeline(timeline, vistoriaId.toString());
+    
+    // Atualizar cache local
+    this.updateLocalCache(notifications);
+    
+    // Atualizar última verificação
+    this.lastCheck = new Date();
+    
+    return {
+      success: true,
+      notifications
+    };
   }
   
   /**

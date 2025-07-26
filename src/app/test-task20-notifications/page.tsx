@@ -121,9 +121,13 @@ export default function TestApprovalNotificationsPage() {
                         onChange={(e) => setToken(e.target.value)}
                         placeholder="Token Bearer"
                       />
+                      <p className="text-xs text-gray-500">
+                        <strong>Nota:</strong> Você pode inserir o token com ou sem o prefixo "Bearer". 
+                        O sistema tentará ambos os formatos automaticamente.
+                      </p>
                     </div>
                     
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 flex-wrap">
                       <Button 
                         onClick={handleCheckApprovalStatus}
                         disabled={loading}
@@ -144,6 +148,30 @@ export default function TestApprovalNotificationsPage() {
                       >
                         Limpar Notificações
                       </Button>
+                      
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          addLog('🔍 Verificando conectividade com o backend...');
+                          fetch('http://localhost:3333/api/health')
+                            .then(response => {
+                              if (response.ok) {
+                                addLog('✅ Backend está online e respondendo');
+                                setSuccess('Backend está online e respondendo');
+                              } else {
+                                addLog(`❌ Backend respondeu com status ${response.status}`);
+                                setError(`Backend respondeu com status ${response.status}`);
+                              }
+                            })
+                            .catch(err => {
+                              addLog(`❌ Não foi possível conectar ao backend: ${err.message}`);
+                              setError(`Não foi possível conectar ao backend: ${err.message}`);
+                            });
+                        }}
+                      >
+                        Verificar Backend
+                      </Button>
                     </div>
                   </div>
                   
@@ -162,6 +190,19 @@ export default function TestApprovalNotificationsPage() {
                       <AlertDescription>{success}</AlertDescription>
                     </Alert>
                   )}
+
+                  <div className="mt-4 p-3 bg-gray-50 border rounded-md">
+                    <h4 className="text-sm font-medium mb-2">Informações de Debug</h4>
+                    <p className="text-xs mb-2">
+                      <strong>Endpoint:</strong> <code>/api/estoque-remessa/:id/timeline-status</code>
+                    </p>
+                    <p className="text-xs mb-2">
+                      <strong>Middleware:</strong> <code>auth</code> (requer autenticação)
+                    </p>
+                    <p className="text-xs">
+                      <strong>Formato de Token:</strong> O sistema tentará com e sem o prefixo "Bearer"
+                    </p>
+                  </div>
                 </div>
                 
                 <div>
