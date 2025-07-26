@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -17,8 +17,12 @@ import {
   EyeOff,
   BarChart3,
   PieChart,
-  Calculator
+  Calculator,
+  Loader2,
+  AlertCircle
 } from 'lucide-react';
+import { DespesasListService, DespesasListOptions } from '@/services/despesas/DespesasListService';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface DespesasListProps {
   despesas: Despesa[];
@@ -26,6 +30,8 @@ interface DespesasListProps {
   showFilters?: boolean;
   onEditDespesa?: (despesa: Despesa) => void;
   readOnly?: boolean;
+  vistoriaId?: string; // ID da vistoria para carregamento automático
+  useRealData?: boolean; // Se true, carrega dados do backend
 }
 
 interface DespesaAgrupada {
@@ -61,28 +67,87 @@ const TIPOS_CONFIG = {
 };
 
 export function DespesasList({
-  despesas,
+  despesas: despesasIniciais,
   showItemGrouping = true,
   showFilters = true,
   onEditDespesa,
-  readOnly = false
+  readOnly = false,
+  vistoriaId,
+  useRealData = false
 }: DespesasListProps) {
   const [filtroTipo, setFiltroTipo] = useState<string>('');
   const [filtroTexto, setFiltroTexto] = useState<string>('');
   const [mostrarApenas, setMostrarApenas] = useState<'todas' | 'aprovadas' | 'pendentes'>('todas');
   const [mostrarDetalhes, setMostrarDetalhes] = useState<boolean>(true);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+  const [despesasCarregadas, setDespesasCarregadas] = useState<Despesa[]>([]);
   
+  // Obter token de autenticação
+  const { token } = useAuth();
+
   // Função para formatar valor monetário
   const formatCurrency = (value: number): string => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL'
-    }).format(value);
+    return DespesasListService.formatarMoeda(value);
   };
+
+  // Carregar despesas do backend se useRealData for true
+  useEffect(() => {
+    if (useRealData && vistoriaId && token) {
+      carregarDespesasDoBackend();
+    }
+  }, [useRealData, vistoriaId, token]);
+
+  // Função para carregar despesas do backend
+  const carregarDespesasDoBackend = async () => {
+    if (!vistoriaId || !token) {
+      console.warn('⚠️ DespesasList: Impossível carregar despesas sem vistoriaId ou token');
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const options: DespesasListOptions = {
+        vistoriaId,
+        tipoFiltro: filtroTipo as any || undefined,
+        textoFiltro: filtroTexto || undefined,
+        statusFiltro: mostrarApenas
+      };
+
+      const result = await DespesasListService.obterDespesas(options, token);
+
+      if (result.success && result.despesas) {
+        setDespesasCarregadas(result.despesas);
+        console.log('✅ DespesasList: Despesas carregadas com sucesso', result.despesas.length);
+      } else {
+        setError(result.error || 'Erro ao carregar despesas');
+        console.error('❌ DespesasList: Erro ao carregar despesas', result.error);
+      }
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Erro desconhecido ao carregar despesas';
+      setError(errorMsg);
+      console.error('❌ DespesasList: Exceção ao carregar despesas', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Determinar quais despesas usar (carregadas do backend ou fornecidas via props)
+  const despesasBase = useMemo(() => {
+    return useRealData && despesasCarregadas.length > 0 ? despesasCarregadas : despesasIniciais;
+  }, [useRealData, despesasCarregadas, despesasIniciais]);
 
   // Filtrar despesas
   const despesasFiltradas = useMemo(() => {
-    return despesas.filter(despesa => {
+    if (useRealData) {
+      // Se estiver usando dados reais, o filtro já foi aplicado no backend
+      return despesasBase;
+    }
+
+    // Aplicar filtros localmente
+    return despesasBase.filter(despesa => {
       const matchTipo = !filtroTipo || despesa.tipo === filtroTipo;
       const matchTexto = !filtroTexto || 
         despesa.descricao.toLowerCase().includes(filtroTexto.toLowerCase());
@@ -92,10 +157,16 @@ export function DespesasList({
       
       return matchTipo && matchTexto && matchStatus;
     });
-  }, [despesas, filtroTipo, filtroTexto, mostrarApenas]);
+  }, [despesasBase, filtroTipo, filtroTexto, mostrarApenas, useRealData]);
 
   // Agrupar despesas por item
   const despesasAgrupadas = useMemo((): DespesaAgrupada[] => {
+    // Se estiver usando dados reais, podemos usar o agrupamento já feito pelo serviço
+    if (useRealData && vistoriaId && token) {
+      return DespesasListService.agruparPorItem(despesasFiltradas);
+    }
+
+    // Agrupar localmente
     const grupos = despesasFiltradas.reduce((acc, despesa) => {
       if (!acc[despesa.itemId]) {
         acc[despesa.itemId] = {
@@ -111,10 +182,16 @@ export function DespesasList({
     }, {} as Record<string, DespesaAgrupada>);
 
     return Object.values(grupos).sort((a, b) => b.total - a.total);
-  }, [despesasFiltradas]);
+  }, [despesasFiltradas, useRealData, vistoriaId, token]);
 
   // Calcular estatísticas
-  const estatisticas = useMemo((): EstatisticasDespesas => {
+  const estatisticas = useMemo(() => {
+    // Se estiver usando dados reais, podemos usar os totais já calculados pelo serviço
+    if (useRealData && vistoriaId && token) {
+      return DespesasListService.calcularTotais(despesasFiltradas);
+    }
+
+    // Calcular localmente
     const totalPorTipo: TotaisPorTipo = {
       SERVICO: 0,
       MATERIAL: 0,
@@ -157,17 +234,47 @@ export function DespesasList({
       despesasAprovadas,
       despesasPendentes: despesasFiltradas.length - despesasAprovadas
     };
-  }, [despesasFiltradas, despesasAgrupadas.length]);
+  }, [despesasFiltradas, despesasAgrupadas.length, useRealData, vistoriaId, token]);
 
-  // Limpar filtros
+  // Limpar filtros e recarregar dados se necessário
   const limparFiltros = () => {
     setFiltroTipo('');
     setFiltroTexto('');
     setMostrarApenas('todas');
+
+    // Se estiver usando dados reais, recarregar do backend
+    if (useRealData && vistoriaId && token) {
+      carregarDespesasDoBackend();
+    }
+  };
+
+  // Aplicar filtros e recarregar dados se necessário
+  const aplicarFiltros = () => {
+    if (useRealData && vistoriaId && token) {
+      carregarDespesasDoBackend();
+    }
   };
 
   return (
     <div className="space-y-6">
+      {/* Estado de carregamento */}
+      {isLoading && (
+        <div className="flex justify-center items-center py-4">
+          <Loader2 className="w-8 h-8 animate-spin text-blue-600 mr-2" />
+          <span className="text-blue-600 font-medium">Carregando despesas...</span>
+        </div>
+      )}
+
+      {/* Mensagem de erro */}
+      {error && (
+        <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+          <p className="text-sm text-red-600 flex items-center gap-2">
+            <AlertCircle className="w-4 h-4" />
+            {error}
+          </p>
+        </div>
+      )}
+
       {/* Card de Estatísticas Gerais */}
       <Card>
         <CardHeader>
@@ -328,12 +435,29 @@ export function DespesasList({
                 </div>
               </div>
 
-              <div className="flex justify-end">
+              <div className="flex justify-end gap-2">
+                {useRealData && (
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={aplicarFiltros}
+                    className="flex items-center gap-1"
+                    disabled={isLoading}
+                  >
+                    {isLoading ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Filter className="w-4 h-4" />
+                    )}
+                    Aplicar Filtros
+                  </Button>
+                )}
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={limparFiltros}
                   className="flex items-center gap-1"
+                  disabled={isLoading}
                 >
                   Limpar Filtros
                 </Button>
