@@ -1,13 +1,17 @@
 'use client';
 
 import React, { useState } from 'react';
+import dynamic from 'next/dynamic';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
-import { StorageMonitor } from '@/components/storage/StorageMonitor';
-import { StorageManagerService } from '@/services/storage/StorageManagerService';
-import { IndexedDBMigration } from '@/utils/indexedDBMigration';
 import { AlertCircle, CheckCircle, Database, HardDrive, Trash2 } from 'lucide-react';
+
+// Importar StorageMonitor com dynamic para evitar erros de SSR
+const StorageMonitor = dynamic(
+  () => import('@/components/storage/StorageMonitor').then(mod => ({ default: mod.StorageMonitor })),
+  { ssr: false }
+);
 
 export default function TestStorageManagementPage() {
   const [logs, setLogs] = useState<string[]>([]);
@@ -32,7 +36,8 @@ export default function TestStorageManagementPage() {
       setSuccess(null);
       addLog('🧹 Iniciando limpeza completa de dados...');
       
-      const storageManager = StorageManagerService.getInstance();
+      const storageManagerModule = await import('@/services/storage/StorageManagerService');
+      const storageManager = storageManagerModule.StorageManagerService.getInstance();
       await storageManager.clearAllData();
       
       setSuccess('Todos os dados foram limpos com sucesso!');
@@ -54,7 +59,8 @@ export default function TestStorageManagementPage() {
       setSuccess(null);
       addLog('🔍 Iniciando diagnóstico do banco de dados...');
       
-      const migration = new IndexedDBMigration();
+      const indexedDBMigrationModule = await import('@/utils/indexedDBMigration');
+      const migration = new indexedDBMigrationModule.IndexedDBMigration();
       const result = await migration.diagnose();
       
       addLog(`📊 Bancos encontrados: ${result.databases.length}`);
@@ -95,7 +101,8 @@ export default function TestStorageManagementPage() {
       setSuccess(null);
       addLog('🔄 Iniciando migração forçada do banco de dados...');
       
-      const migration = new IndexedDBMigration();
+      const indexedDBMigrationModule = await import('@/utils/indexedDBMigration');
+      const migration = new indexedDBMigrationModule.IndexedDBMigration();
       const result = await migration.forceMigration();
       
       if (result.success) {

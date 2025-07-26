@@ -9,9 +9,9 @@ import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { StorageManagerService, StorageSettings } from '@/services/storage/StorageManagerService';
 import { StorageStats } from '@/types/offline';
 import { HardDrive, Trash2, RefreshCw, Settings, AlertCircle, CheckCircle } from 'lucide-react';
+import type { StorageSettings, StorageManagerService } from '@/services/storage/StorageManagerService';
 
 interface StorageMonitorProps {
   className?: string;
@@ -43,26 +43,45 @@ export function StorageMonitor({
     autoCleanupEnabled: true
   });
   
-  // Instância do serviço
-  const storageManager = StorageManagerService.getInstance();
+  // Instância do serviço (carregada dinamicamente)
+  const [storageManager, setStorageManager] = useState<StorageManagerService | null>(null);
+  
+  // Carregar o serviço de forma dinâmica
+  useEffect(() => {
+    const loadStorageManager = async () => {
+      try {
+        const module = await import('@/services/storage/StorageManagerService');
+        setStorageManager(module.StorageManagerService.getInstance());
+      } catch (err) {
+        console.error('Erro ao carregar StorageManagerService:', err);
+        setError('Não foi possível inicializar o serviço de gerenciamento de armazenamento');
+      }
+    };
+    
+    loadStorageManager();
+  }, []);
   
   // Carregar estatísticas e configurações
   useEffect(() => {
-    loadStats();
-    loadSettings();
-    
-    // Configurar atualização automática
-    if (autoRefresh) {
-      const interval = setInterval(() => {
-        loadStats();
-      }, refreshInterval * 1000);
+    if (storageManager) {
+      loadStats();
+      loadSettings();
       
-      return () => clearInterval(interval);
+      // Configurar atualização automática
+      if (autoRefresh) {
+        const interval = setInterval(() => {
+          loadStats();
+        }, refreshInterval * 1000);
+        
+        return () => clearInterval(interval);
+      }
     }
-  }, [autoRefresh, refreshInterval]);
+  }, [autoRefresh, refreshInterval, storageManager]);
   
   // Carregar estatísticas de armazenamento
   const loadStats = async () => {
+    if (!storageManager) return;
+    
     try {
       setLoading(true);
       setError(null);
@@ -78,6 +97,8 @@ export function StorageMonitor({
   
   // Carregar configurações
   const loadSettings = async () => {
+    if (!storageManager) return;
+    
     try {
       await storageManager.loadSettings();
       // Não temos um método para obter as configurações atuais, então não podemos atualizar o estado aqui
@@ -88,6 +109,8 @@ export function StorageMonitor({
   
   // Salvar configurações
   const saveSettings = () => {
+    if (!storageManager) return;
+    
     try {
       storageManager.updateSettings(settings);
       setSuccess('Configurações salvas com sucesso');
@@ -102,6 +125,8 @@ export function StorageMonitor({
   
   // Limpar dados antigos
   const cleanupOldData = async () => {
+    if (!storageManager) return;
+    
     try {
       setLoading(true);
       setError(null);
@@ -164,7 +189,7 @@ export function StorageMonitor({
                 variant="outline" 
                 size="sm"
                 onClick={loadStats}
-                disabled={loading}
+                disabled={loading || !storageManager}
               >
                 <RefreshCw className={`h-4 w-4 mr-1 ${loading ? 'animate-spin' : ''}`} />
                 Atualizar
@@ -175,6 +200,7 @@ export function StorageMonitor({
                   variant="outline"
                   size="sm"
                   onClick={() => setShowSettingsPanel(!showSettingsPanel)}
+                  disabled={!storageManager}
                 >
                   <Settings className="h-4 w-4 mr-1" />
                   Configurações
@@ -202,6 +228,14 @@ export function StorageMonitor({
             <CheckCircle className="h-4 w-4 text-green-600" />
             <AlertTitle>Sucesso</AlertTitle>
             <AlertDescription>{success}</AlertDescription>
+          </Alert>
+        )}
+        
+        {!storageManager && (
+          <Alert className="mb-4">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Carregando</AlertTitle>
+            <AlertDescription>Inicializando serviço de gerenciamento de armazenamento...</AlertDescription>
           </Alert>
         )}
         
@@ -360,7 +394,7 @@ export function StorageMonitor({
             variant="destructive"
             size="sm"
             onClick={cleanupOldData}
-            disabled={loading}
+            disabled={loading || !storageManager}
           >
             <Trash2 className="h-4 w-4 mr-1" />
             Limpar Dados Antigos
