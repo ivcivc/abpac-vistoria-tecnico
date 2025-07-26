@@ -3,14 +3,16 @@ import { STORES, StorageQuery, VistoriaItem } from '@/types/storage';
 
 export interface VistoriaLocal {
   id: string;
-  token: string;
+  titulo?: string; // Nome/título da vistoria
+  token?: string;
   local: string;
-  dataAgendada: string;
-  dataAcesso: string; // Quando foi acessada neste dispositivo
+  dataAgendada?: string;
+  dataAcesso?: string; // Quando foi acessada neste dispositivo
+  dataCriacao?: Date; // Data de criação da vistoria
   tipoVistoria?: string;
   tecnicoNome?: string; // Nome do técnico que acessou
   status: 'em_andamento' | 'concluida' | 'pausada';
-  veiculo: {
+  veiculo?: {
     placa: string;
     modelo: string;
     cor: string;
@@ -20,7 +22,9 @@ export interface VistoriaLocal {
   nomeEquipamento?: string; // Nome do equipamento para exibição
   itens?: any[]; // Lista de itens da vistoria
   sincronizada?: boolean; // Status de sincronização com o backend
+  sincronizado?: boolean; // Indica se a conclusão foi sincronizada com o backend
   ultimaSincronizacao?: Date; // Data da última sincronização
+  ultimaAtualizacao?: Date; // Data da última atualização local
   observacoes?: string; // Observações gerais da vistoria
   dataConclusao?: Date; // Data em que a vistoria foi concluída
   progresso?: number; // Percentual de progresso da vistoria
@@ -59,8 +63,8 @@ export class LocalVistoriaService {
       const vistoriaLocal: VistoriaLocal = {
         id: dadosVistoria.id,
         token,
-        local: dadosVistoria.local,
-        dataAgendada: dadosVistoria.dataAgendada,
+        local: dadosVistoria.local || 'Local não especificado',
+        dataAgendada: dadosVistoria.dataAgendada || new Date().toISOString(),
         dataAcesso: new Date().toISOString(),
         tipoVistoria: dadosVistoria.tipoVistoria,
         tecnicoNome,
@@ -101,8 +105,11 @@ export class LocalVistoriaService {
         return createResult;
       }
     } catch (error) {
-      console.error('❌ Erro ao salvar vistoria local:', error);
-      return { success: false, error: 'Erro ao salvar no histórico local' };
+      console.error('❌ Erro ao adicionar vistoria ao histórico local:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Erro desconhecido',
+      };
     }
   }
 

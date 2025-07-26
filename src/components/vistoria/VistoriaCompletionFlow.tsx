@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { VistoriaLocal, LocalVistoriaService } from '@/services/vistoria/LocalVistoriaService';
+import { VistoriaCompletionService } from '@/services/vistoria/VistoriaCompletionService';
 import { calculateVistoriaProgress } from '@/utils/progressCalculation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import {
   CheckCircle,
   AlertTriangle,
@@ -22,13 +24,16 @@ import {
   Send,
   RefreshCw,
   Eye,
-  X
+  X,
+  Cloud,
+  CloudOff
 } from 'lucide-react';
 
 interface VistoriaCompletionFlowProps {
   vistoria: VistoriaLocal;
   onVistoriaUpdated: (vistoria: VistoriaLocal) => void;
   onCancel?: () => void;
+  token?: string | null; // Token de autenticação para integração com backend
 }
 
 interface CompletionValidation {
@@ -50,13 +55,36 @@ interface CompletionSummary {
 export function VistoriaCompletionFlow({ 
   vistoria, 
   onVistoriaUpdated, 
-  onCancel 
+  onCancel,
+  token 
 }: VistoriaCompletionFlowProps) {
   const [loading, setLoading] = useState(false);
   const [validation, setValidation] = useState<CompletionValidation | null>(null);
   const [summary, setSummary] = useState<CompletionSummary | null>(null);
   const [observacoesConclusao, setObservacoesConclusao] = useState(vistoria.observacoes || '');
   const [showValidationDetails, setShowValidationDetails] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [isOnline, setIsOnline] = useState<boolean | null>(null);
+
+  // Verificar conectividade com o backend
+  useEffect(() => {
+    const checkConnectivity = async () => {
+      try {
+        const response = await fetch('http://localhost:3333/api/health', {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        
+        setIsOnline(response.ok);
+      } catch (error) {
+        setIsOnline(false);
+        console.warn('⚠️ Não foi possível conectar ao backend:', error);
+      }
+    };
+    
+    checkConnectivity();
+  }, []);
 
   // Validar vistoria para conclusão
   const validateCompletion = (): CompletionValidation => {
@@ -134,39 +162,55 @@ export function VistoriaCompletionFlow({
   // Concluir vistoria
   const handleConcluirVistoria = async () => {
     setLoading(true);
+    setError(null);
+    setSuccess(null);
     
     try {
-      const localVistoriaService = new LocalVistoriaService();
-      
-      // Atualizar vistoria com dados de conclusão
-      const vistoriaAtualizada: VistoriaLocal = {
-        ...vistoria,
-        status: 'concluida',
-        dataConclusao: new Date(),
-        observacoes: observacoesConclusao.trim(),
-        progresso: 100,
-        ultimaAtualizacao: new Date()
-      };
-
-      // Salvar no armazenamento local
-      const result = await localVistoriaService.salvarVistoriaLocal(vistoriaAtualizada);
+      // Usar o serviço de conclusão com fallback
+      const result = await VistoriaCompletionService.concluirVistoriaComFallback(
+        vistoria,
+        observacoesConclusao.trim(),
+        token
+      );
       
       if (result.success) {
-        console.log('✅ [COMPLETION] Vistoria concluída com sucesso:', vistoriaAtualizada.id);
+        const localVistoriaService = new LocalVistoriaService();
         
-        // Notificar componente pai
-        onVistoriaUpdated(vistoriaAtualizada);
+        // Atualizar vistoria com dados de conclusão
+        const vistoriaAtualizada: VistoriaLocal = {
+          ...vistoria,
+          status: 'concluida',
+          dataConclusao: new Date(),
+          observacoes: observacoesConclusao.trim(),
+          progresso: 100,
+          ultimaAtualizacao: new Date(),
+          sincronizado: !!token && !result.details?.localOnly // Marcar como sincronizado apenas se usou o backend
+        };
+
+        // Salvar no armazenamento local
+        const saveResult = await localVistoriaService.salvarVistoriaLocal(vistoriaAtualizada);
         
-        // TODO: Adicionar à fila de sincronização
-        console.log('📤 [COMPLETION] Adicionando vistoria à fila de sincronização...');
-        
+        if (saveResult.success) {
+          console.log('✅ [COMPLETION] Vistoria concluída com sucesso:', vistoriaAtualizada.id);
+          
+          // Notificar componente pai
+          onVistoriaUpdated(vistoriaAtualizada);
+          
+          // Exibir mensagem de sucesso
+          setSuccess(result.details?.localOnly 
+            ? 'Vistoria concluída localmente. Será sincronizada quando houver conexão.'
+            : 'Vistoria concluída e enviada ao sistema central com sucesso!');
+          
+        } else {
+          throw new Error(saveResult.error || 'Falha ao salvar conclusão localmente');
+        }
       } else {
-        throw new Error(result.error || 'Falha ao salvar conclusão');
+        throw new Error(result.error || 'Falha ao concluir vistoria');
       }
       
     } catch (error) {
       console.error('❌ [COMPLETION] Erro ao concluir vistoria:', error);
-      alert('Erro ao concluir vistoria. Tente novamente.');
+      setError(error instanceof Error ? error.message : 'Erro desconhecido ao concluir vistoria');
     } finally {
       setLoading(false);
     }
@@ -202,9 +246,32 @@ export function VistoriaCompletionFlow({
       {/* Header */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <CheckCircle className="w-6 h-6" />
-            Conclusão da Vistoria
+          <CardTitle className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <CheckCircle className="w-6 h-6" />
+              Conclusão da Vistoria
+            </div>
+            
+            {isOnline !== null && (
+              <Badge 
+                className={isOnline 
+                  ? "bg-green-100 text-green-800" 
+                  : "bg-orange-100 text-orange-800"
+                }
+              >
+                {isOnline ? (
+                  <div className="flex items-center gap-1">
+                    <Cloud className="w-3 h-3" />
+                    <span>Online</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1">
+                    <CloudOff className="w-3 h-3" />
+                    <span>Offline</span>
+                  </div>
+                )}
+              </Badge>
+            )}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -222,9 +289,43 @@ export function VistoriaCompletionFlow({
                 <p className="font-medium">{new Date().toLocaleString('pt-BR')}</p>
               </div>
             </div>
+            
+            {/* Mensagem sobre integração */}
+            {token ? (
+              <div className="p-2 bg-blue-50 rounded text-sm text-blue-700 flex items-center gap-2">
+                <Cloud className="w-4 h-4" />
+                <span>
+                  A vistoria será concluída e enviada diretamente ao sistema central.
+                </span>
+              </div>
+            ) : (
+              <div className="p-2 bg-orange-50 rounded text-sm text-orange-700 flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4" />
+                <span>
+                  Modo offline: A vistoria será concluída localmente e sincronizada posteriormente.
+                </span>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
+
+      {/* Mensagens de erro/sucesso */}
+      {error && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Erro ao concluir vistoria</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+      
+      {success && (
+        <Alert variant="default" className="bg-green-50 border-green-200 text-green-800">
+          <CheckCircle className="h-4 w-4" />
+          <AlertTitle>Sucesso!</AlertTitle>
+          <AlertDescription>{success}</AlertDescription>
+        </Alert>
+      )}
 
       {/* Resumo da Vistoria */}
       <Card>
@@ -351,7 +452,7 @@ export function VistoriaCompletionFlow({
               rows={4}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               maxLength={1000}
-              disabled={vistoria.status === 'concluida'}
+              disabled={vistoria.status === 'concluida' || loading}
             />
             <p className="text-xs text-gray-500">
               Opcional. Registre observações gerais sobre toda a vistoria. Máx: 1000 caracteres.
@@ -380,7 +481,7 @@ export function VistoriaCompletionFlow({
             
             <div className="flex items-center gap-3">
               {onCancel && (
-                <Button variant="outline" onClick={onCancel}>
+                <Button variant="outline" onClick={onCancel} disabled={loading}>
                   <X className="w-4 h-4 mr-2" />
                   Cancelar
                 </Button>
@@ -397,7 +498,7 @@ export function VistoriaCompletionFlow({
                   ) : (
                     <Send className="w-4 h-4 mr-2" />
                   )}
-                  Concluir Vistoria
+                  {token ? 'Concluir e Enviar' : 'Concluir Vistoria'}
                 </Button>
               )}
             </div>

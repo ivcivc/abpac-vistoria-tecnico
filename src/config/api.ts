@@ -89,6 +89,37 @@ export const API_CONFIG = {
  *
  * MIDDLEWARE: validarTokenVistoria + validarTokenConclude
  * VALIDATOR: EstoqueRemessa/ConcluirVistoria
+ * 
+ * REQUEST:
+ * {
+ *   "observacoes_gerais": "Texto com observações gerais sobre a vistoria (opcional, max 1000 chars)",
+ *   "confirmacao_completa": true
+ * }
+ * 
+ * SUCCESS RESPONSE (200):
+ * {
+ *   "type": true,
+ *   "message": "Vistoria concluída com sucesso",
+ *   "data": {
+ *     "id": 123,
+ *     "status": "AGUARDANDO_APROVACAO",
+ *     "data_vistoria_concluida": "2023-07-26T15:30:00.000Z",
+ *     ...
+ *   }
+ * }
+ * 
+ * ERROR RESPONSE (422):
+ * {
+ *   "type": false,
+ *   "code": "VALIDATION_ERROR",
+ *   "message": "Existem 2 item(s) pendente(s) de conclusão",
+ *   "details": {
+ *     "itens_pendentes": [
+ *       { "id": 456, "status": "PENDENTE", "descricao": "Item #456" },
+ *       { "id": 789, "status": "EM_EXECUCAO", "descricao": "Item #789" }
+ *     ]
+ *   }
+ * }
  *
  *
  * 4. POST /api/vistoria/:id/adicionar-despesa
