@@ -76,6 +76,11 @@ export default function TestPerformancePage() {
   const [renderHeavy, setRenderHeavy] = useState(false);
   const [performanceLog, setPerformanceLog] = useState<string[]>([]);
   
+  // Função para adicionar logs de performance - definida antes de ser usada
+  const addLog = useCallback((message: string) => {
+    setPerformanceLog(prev => [`[${new Date().toLocaleTimeString()}] ${message}`, ...prev]);
+  }, []);
+  
   // Função memoizada para gerar itens de teste
   const generateItems = useCallback((count: number) => {
     const startTime = performance.now();
@@ -94,15 +99,10 @@ export default function TestPerformancePage() {
     
     addLog(`Gerados ${count} itens em ${(endTime - startTime).toFixed(2)}ms`);
     return items;
-  }, []);
+  }, [addLog]);
   
   // Itens memoizados para evitar recálculos desnecessários
   const items = useMemo(() => generateItems(itemCount), [generateItems, itemCount]);
-  
-  // Função para adicionar logs de performance
-  const addLog = useCallback((message: string) => {
-    setPerformanceLog(prev => [`[${new Date().toLocaleTimeString()}] ${message}`, ...prev]);
-  }, []);
   
   // Manipuladores de eventos memoizados
   const handleTabChange = useCallback((value: string) => {
