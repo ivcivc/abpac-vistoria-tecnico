@@ -83,47 +83,185 @@ export function ItemEditModal({ item, open, onClose, onSave }: ItemEditModalProp
     setEditedItem(updatedItem);
     setHasChanges(true);
 
-    // Limpar erro de validação do campo quando ele for alterado
-    if (validationErrors[field]) {
-      const newErrors = { ...validationErrors };
-      delete newErrors[field];
-      setValidationErrors(newErrors);
+    // Validação instantânea para campos específicos
+    const newErrors = { ...validationErrors };
+    
+    // Limpar erro atual do campo
+    delete newErrors[field];
+
+    // Validação instantânea baseada no campo
+    const trimmedValue = typeof value === 'string' ? value.trim() : value;
+
+    switch (field) {
+      case 'observacoes_tecnico':
+        if (!trimmedValue) {
+          newErrors[field] = 'Observações do técnico são obrigatórias';
+        } else if (trimmedValue.length < 10) {
+          newErrors[field] = 'Observações devem ter pelo menos 10 caracteres';
+        } else if (trimmedValue.length > 500) {
+          newErrors[field] = 'Observações não podem exceder 500 caracteres';
+        }
+        break;
+
+      case 'numero_serie_executado':
+        if (!trimmedValue) {
+          // Só mostrar erro se a ação requer número de série
+          const acao = (updatedItem as any).acao?.toUpperCase();
+          if (acao === 'INSTALAR' || acao === 'SUBSTITUIR') {
+            newErrors[field] = `Número de série é obrigatório para ${acao.toLowerCase()}`;
+          }
+        } else if (trimmedValue.length < 3) {
+          newErrors[field] = 'Número de série deve ter pelo menos 3 caracteres';
+        } else if (trimmedValue.length > 50) {
+          newErrors[field] = 'Número de série não pode exceder 50 caracteres';
+        } else if (!/^[A-Za-z0-9\-_.\s]+$/.test(trimmedValue)) {
+          newErrors[field] = 'Número de série deve conter apenas letras, números, hífen, underscore e espaços';
+        }
+        break;
+
+      case 'local_instalacao_executado':
+        if (!trimmedValue) {
+          // Verificar se é obrigatório baseado na ação
+          const acao = (updatedItem as any).acao?.toUpperCase();
+          if (['INSTALAR', 'SUBSTITUIR', 'REMOVER', 'MANUTENCAO'].includes(acao)) {
+            newErrors[field] = 'Local de instalação é obrigatório';
+          }
+        } else if (trimmedValue.length < 5) {
+          newErrors[field] = 'Local deve ter pelo menos 5 caracteres';
+        } else if (trimmedValue.length > 100) {
+          newErrors[field] = 'Local não pode exceder 100 caracteres';
+        }
+        break;
+
+      case 'status':
+        const validStatuses = ['PENDENTE', 'CONCLUIDO', 'PROBLEMA', 'CANCELADO'];
+        if (!value || !validStatuses.includes(value)) {
+          newErrors[field] = 'Status deve ser: PENDENTE, CONCLUIDO, PROBLEMA ou CANCELADO';
+        }
+        break;
     }
+
+    setValidationErrors(newErrors);
   };
 
   const validateItem = (): boolean => {
     const errors: Record<string, string> = {};
 
+    // Validação de observações do técnico (sempre obrigatórias)
+    const observacoes = (editedItem as any).observacoes_tecnico?.trim();
+    if (!observacoes) {
+      errors.observacoes_tecnico = 'Observações do técnico são obrigatórias';
+    } else if (observacoes.length < 10) {
+      errors.observacoes_tecnico = 'Observações devem ter pelo menos 10 caracteres';
+    } else if (observacoes.length > 500) {
+      errors.observacoes_tecnico = 'Observações não podem exceder 500 caracteres';
+    }
+
     // Validações para INSTALAR
     if ((editedItem as any).acao === 'INSTALAR') {
-      if (!(editedItem as any).numero_serie_executado?.trim()) {
+      // Validação do número de série
+      const numeroSerie = (editedItem as any).numero_serie_executado?.trim();
+      if (!numeroSerie) {
         errors.numero_serie_executado = 'Número de série executado é obrigatório para instalações';
+      } else if (numeroSerie.length < 3) {
+        errors.numero_serie_executado = 'Número de série deve ter pelo menos 3 caracteres';
+      } else if (numeroSerie.length > 50) {
+        errors.numero_serie_executado = 'Número de série não pode exceder 50 caracteres';
+      } else if (!/^[A-Za-z0-9\-_.\s]+$/.test(numeroSerie)) {
+        errors.numero_serie_executado = 'Número de série deve conter apenas letras, números, hífen, underscore e espaços';
       }
-      if (!(editedItem as any).local_instalacao_executado?.trim()) {
+
+      // Validação do local de instalação
+      const localInstalacao = (editedItem as any).local_instalacao_executado?.trim();
+      if (!localInstalacao) {
         errors.local_instalacao_executado = 'Local de instalação executado é obrigatório para instalações';
+      } else if (localInstalacao.length < 5) {
+        errors.local_instalacao_executado = 'Local de instalação deve ter pelo menos 5 caracteres';
+      } else if (localInstalacao.length > 100) {
+        errors.local_instalacao_executado = 'Local de instalação não pode exceder 100 caracteres';
+      }
+
+      // Validação de evidências obrigatórias para instalação
+      if (fotosNumeroSerie.length === 0) {
+        errors.fotos_numero_serie = 'Pelo menos 1 foto do número de série é obrigatória para instalações';
+      } else if (fotosNumeroSerie.length > 5) {
+        errors.fotos_numero_serie = 'Máximo de 5 fotos do número de série permitidas';
+      }
+
+      if (fotosLocalInstalacao.length === 0) {
+        errors.fotos_local_instalacao = 'Pelo menos 1 foto do local de instalação é obrigatória para instalações';
+      } else if (fotosLocalInstalacao.length > 5) {
+        errors.fotos_local_instalacao = 'Máximo de 5 fotos do local de instalação permitidas';
       }
     }
 
     // Validações para SUBSTITUIR
     if ((editedItem as any).acao === 'SUBSTITUIR') {
-      if (!(editedItem as any).numero_serie_executado?.trim()) {
+      // Validação do número de série (novo equipamento)
+      const numeroSerie = (editedItem as any).numero_serie_executado?.trim();
+      if (!numeroSerie) {
         errors.numero_serie_executado = 'Número de série do novo equipamento é obrigatório para substituições';
+      } else if (numeroSerie.length < 3) {
+        errors.numero_serie_executado = 'Número de série deve ter pelo menos 3 caracteres';
+      } else if (numeroSerie.length > 50) {
+        errors.numero_serie_executado = 'Número de série não pode exceder 50 caracteres';
+      } else if (!/^[A-Za-z0-9\-_.\s]+$/.test(numeroSerie)) {
+        errors.numero_serie_executado = 'Número de série deve conter apenas letras, números, hífen, underscore e espaços';
       }
-      if (!(editedItem as any).local_instalacao_executado?.trim()) {
+
+      // Validação do local de instalação
+      const localInstalacao = (editedItem as any).local_instalacao_executado?.trim();
+      if (!localInstalacao) {
         errors.local_instalacao_executado = 'Local de instalação executado é obrigatório para substituições';
+      } else if (localInstalacao.length < 5) {
+        errors.local_instalacao_executado = 'Local de instalação deve ter pelo menos 5 caracteres';
+      } else if (localInstalacao.length > 100) {
+        errors.local_instalacao_executado = 'Local de instalação não pode exceder 100 caracteres';
+      }
+
+      // Validação de evidências obrigatórias para substituição
+      if (fotosNumeroSerie.length === 0) {
+        errors.fotos_numero_serie = 'Pelo menos 1 foto do número de série do novo equipamento é obrigatória';
+      } else if (fotosNumeroSerie.length > 5) {
+        errors.fotos_numero_serie = 'Máximo de 5 fotos do número de série permitidas';
+      }
+
+      if (fotosLocalInstalacao.length === 0) {
+        errors.fotos_local_instalacao = 'Pelo menos 1 foto do local após substituição é obrigatória';
+      } else if (fotosLocalInstalacao.length > 5) {
+        errors.fotos_local_instalacao = 'Máximo de 5 fotos do local de instalação permitidas';
       }
     }
 
     // Validações para REMOVER e MANUTENCAO
     if ((editedItem as any).acao === 'REMOVER' || (editedItem as any).acao === 'MANUTENCAO') {
-      if (!(editedItem as any).local_instalacao_executado?.trim()) {
+      const localInstalacao = (editedItem as any).local_instalacao_executado?.trim();
+      if (!localInstalacao) {
         errors.local_instalacao_executado = 'Local de instalação executado é obrigatório';
+      } else if (localInstalacao.length < 5) {
+        errors.local_instalacao_executado = 'Local deve ter pelo menos 5 caracteres';
+      } else if (localInstalacao.length > 100) {
+        errors.local_instalacao_executado = 'Local não pode exceder 100 caracteres';
+      }
+
+      // Validação de evidências para REMOVER/MANUTENCAO
+      if (fotosLocalInstalacao.length === 0) {
+        errors.fotos_local_instalacao = `Pelo menos 1 foto do local é obrigatória para ${(editedItem as any).acao?.toLowerCase()}`;
+      } else if (fotosLocalInstalacao.length > 5) {
+        errors.fotos_local_instalacao = 'Máximo de 5 fotos do local permitidas';
       }
     }
 
-    // Validação de observações do técnico (sempre obrigatórias)
-    if (!(editedItem as any).observacoes_tecnico?.trim()) {
-      errors.observacoes_tecnico = 'Observações do técnico são obrigatórias';
+    // Validação do status
+    const status = (editedItem as any).status;
+    const validStatuses = ['PENDENTE', 'CONCLUIDO', 'PROBLEMA', 'CANCELADO'];
+    if (!status || !validStatuses.includes(status)) {
+      errors.status = 'Status deve ser: PENDENTE, CONCLUIDO, PROBLEMA ou CANCELADO';
+    }
+
+    // Validação de evidências adicionais (opcional mas com limite)
+    if (fotosOutrasEvidencias.length > 10) {
+      errors.outras_evidencias = 'Máximo de 10 evidências adicionais permitidas';
     }
 
     setValidationErrors(errors);
@@ -132,38 +270,54 @@ export function ItemEditModal({ item, open, onClose, onSave }: ItemEditModalProp
 
   // Verifica se todos os campos obrigatórios estão preenchidos
   const isFormValid = (): boolean => {
+    // Se há erros de validação, formulário é inválido
+    if (Object.keys(validationErrors).length > 0) {
+      return false;
+    }
+
     const acao = (editedItem as any).acao?.toUpperCase();
     
     // Observações do técnico são sempre obrigatórias
-    if (!(editedItem as any).observacoes_tecnico?.trim()) {
+    const observacoes = (editedItem as any).observacoes_tecnico?.trim();
+    if (!observacoes || observacoes.length < 10) {
       return false;
     }
 
     // Validações específicas por ação
     if (acao === 'INSTALAR' || acao === 'SUBSTITUIR') {
-      if (!(editedItem as any).numero_serie_executado?.trim()) {
+      const numeroSerie = (editedItem as any).numero_serie_executado?.trim();
+      const localInstalacao = (editedItem as any).local_instalacao_executado?.trim();
+      
+      if (!numeroSerie || numeroSerie.length < 3) {
         return false;
       }
-      if (!(editedItem as any).local_instalacao_executado?.trim()) {
+      if (!localInstalacao || localInstalacao.length < 5) {
         return false;
       }
+      
       // Validar fotos obrigatórias para INSTALAR/SUBSTITUIR
-      if (fotosNumeroSerie.length < 1) {
-        return false;
-      }
-      if (fotosLocalInstalacao.length < 1) {
+      if (fotosNumeroSerie.length < 1 || fotosLocalInstalacao.length < 1) {
         return false;
       }
     }
 
     if (acao === 'REMOVER' || acao === 'MANUTENCAO') {
-      if (!(editedItem as any).local_instalacao_executado?.trim()) {
+      const localInstalacao = (editedItem as any).local_instalacao_executado?.trim();
+      if (!localInstalacao || localInstalacao.length < 5) {
         return false;
       }
+      
       // Validar foto obrigatória do local para REMOVER/MANUTENCAO
       if (fotosLocalInstalacao.length < 1) {
         return false;
       }
+    }
+
+    // Validar status
+    const status = (editedItem as any).status;
+    const validStatuses = ['PENDENTE', 'CONCLUIDO', 'PROBLEMA', 'CANCELADO'];
+    if (!status || !validStatuses.includes(status)) {
+      return false;
     }
 
     return true;
@@ -584,21 +738,52 @@ export function ItemEditModal({ item, open, onClose, onSave }: ItemEditModalProp
                     </p>
                     
                     {/* Captura de foto do local - OTIMIZADA PARA MOBILE */}
-                    <div className="mt-4 p-3 sm:p-4 bg-green-50 border border-green-200 rounded-lg">
+                    <div className={`mt-4 p-3 sm:p-4 rounded-lg border ${
+                      validationErrors.fotos_local_instalacao 
+                        ? 'bg-red-50 border-red-200' 
+                        : 'bg-green-50 border-green-200'
+                    }`}>
                       <div className="mb-3">
-                        <h4 className="text-sm font-medium text-green-900 flex items-center gap-2">
+                        <h4 className={`text-sm font-medium flex items-center gap-2 ${
+                          validationErrors.fotos_local_instalacao ? 'text-red-900' : 'text-green-900'
+                        }`}>
                           <Camera className="w-4 h-4" />
                           Foto do Local de Instalação
+                          {validationErrors.fotos_local_instalacao && (
+                            <span className="text-red-600">*</span>
+                          )}
                         </h4>
-                        <p className="text-xs text-green-700 mt-1">
+                        <p className={`text-xs mt-1 ${
+                          validationErrors.fotos_local_instalacao ? 'text-red-700' : 'text-green-700'
+                        }`}>
                           Capture uma ou mais fotos do local onde o equipamento foi instalado/escondido
                         </p>
+                        {validationErrors.fotos_local_instalacao && (
+                          <p className="text-sm text-red-600 mt-1 font-medium">
+                            {validationErrors.fotos_local_instalacao}
+                          </p>
+                        )}
                       </div>
                       <SimpleMediaCapture
                         onCapture={(evidences) => {
                           console.log('📸 Captura do local de instalação:', evidences);
                           setFotosLocalInstalacao(evidences);
                           setHasChanges(true);
+                          
+                          // Validação instantânea de fotos do local de instalação
+                          const newErrors = { ...validationErrors };
+                          delete newErrors.fotos_local_instalacao;
+                          
+                          const acao = (editedItem as any).acao?.toUpperCase();
+                          if (['INSTALAR', 'SUBSTITUIR', 'REMOVER', 'MANUTENCAO'].includes(acao)) {
+                            if (evidences.length === 0) {
+                              newErrors.fotos_local_instalacao = `Pelo menos 1 foto do local é obrigatória para ${acao.toLowerCase()}`;
+                            } else if (evidences.length > 5) {
+                              newErrors.fotos_local_instalacao = 'Máximo de 5 fotos do local permitidas';
+                            }
+                          }
+                          
+                          setValidationErrors(newErrors);
                         }}
                         tipoEvidencia="local_instalacao"
                         minFotos={1}
@@ -671,21 +856,52 @@ export function ItemEditModal({ item, open, onClose, onSave }: ItemEditModalProp
                     )}
                     
                     {/* Captura de foto do número de série - OTIMIZADA PARA MOBILE */}
-                    <div className="mt-4 p-3 sm:p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                    <div className={`mt-4 p-3 sm:p-4 rounded-lg border ${
+                      validationErrors.fotos_numero_serie 
+                        ? 'bg-red-50 border-red-200' 
+                        : 'bg-blue-50 border-blue-200'
+                    }`}>
                       <div className="mb-3">
-                        <h4 className="text-sm font-medium text-blue-900 flex items-center gap-2">
+                        <h4 className={`text-sm font-medium flex items-center gap-2 ${
+                          validationErrors.fotos_numero_serie ? 'text-red-900' : 'text-blue-900'
+                        }`}>
                           <Camera className="w-4 h-4" />
                           Foto do Número de Série
+                          {validationErrors.fotos_numero_serie && (
+                            <span className="text-red-600">*</span>
+                          )}
                         </h4>
-                        <p className="text-xs text-blue-700 mt-1">
+                        <p className={`text-xs mt-1 ${
+                          validationErrors.fotos_numero_serie ? 'text-red-700' : 'text-blue-700'
+                        }`}>
                           Capture uma ou mais fotos claras do número de série digitado acima
                         </p>
+                        {validationErrors.fotos_numero_serie && (
+                          <p className="text-sm text-red-600 mt-1 font-medium">
+                            {validationErrors.fotos_numero_serie}
+                          </p>
+                        )}
                       </div>
                       <SimpleMediaCapture
                         onCapture={(evidences) => {
                           console.log('📸 Captura de número de série:', evidences);
                           setFotosNumeroSerie(evidences);
                           setHasChanges(true);
+                          
+                          // Validação instantânea de fotos do número de série
+                          const newErrors = { ...validationErrors };
+                          delete newErrors.fotos_numero_serie;
+                          
+                          const acao = (editedItem as any).acao?.toUpperCase();
+                          if (acao === 'INSTALAR' || acao === 'SUBSTITUIR') {
+                            if (evidences.length === 0) {
+                              newErrors.fotos_numero_serie = `Pelo menos 1 foto do número de série é obrigatória para ${acao.toLowerCase()}`;
+                            } else if (evidences.length > 5) {
+                              newErrors.fotos_numero_serie = 'Máximo de 5 fotos do número de série permitidas';
+                            }
+                          }
+                          
+                          setValidationErrors(newErrors);
                         }}
                         tipoEvidencia="numero_serie"
                         minFotos={1}

@@ -39,12 +39,12 @@ Este documento serve para acompanhar o progresso do plano de implementação do 
   - ✅ Integração com SimpleMediaCapture para captura de evidências
 
 #### Task 2: Atualização de Itens da Vistoria
-**Progresso:** 60% - Iniciado ⚠️
+**Progresso:** 75% - Iniciado ⚠️
 **Responsável:** Sistema AI
 **Prazo:** _Em andamento_
 
 - [x] 2.1. Criar formulário de edição de item ✅
-- [ ] 2.2. Implementar validação de campos
+- [x] 2.2. Implementar validação de campos ✅
 - [x] 2.3. Desenvolver componente de upload de fotos ✅
 - [x] 2.4. Implementar armazenamento local ✅
 - [ ] 2.5. Integrar com endpoint PUT
@@ -60,7 +60,8 @@ Este documento serve para acompanhar o progresso do plano de implementação do 
   - ✅ Cálculo automático de progresso da vistoria (VistoriaProgressService)
   - ✅ Indicadores visuais de sincronização (SyncStatusIndicator)
   - ✅ Persistência de edições de itens com atualização de progresso
-- **PRÓXIMOS PASSOS:** Implementar validações de formulário e integração com backend
+  - ✅ Sistema completo de validação de campos com feedback em tempo real
+- **PRÓXIMOS PASSOS:** Integrar com endpoints do backend e implementar fila de sincronização
 
 #### Task 4: Captura e Upload de Evidências
 **Progresso:** 40% - Iniciado ⚠️
@@ -224,23 +225,25 @@ _Nenhuma observação ainda._
 
 ### 25/01/2025
 
-### ✅ Implementações de Armazenamento Local
+### ✅ Implementações de Armazenamento Local e Validação
 1. **VistoriaProgressService** - Serviço para cálculo e atualização de progresso
 2. **SyncStatusIndicator** - Componente visual para status de sincronização
 3. **Persistência de Edições** - Integração com LocalVistoriaService no handleSaveEdit
 4. **Indicadores na Lista** - Integração dos indicadores de sincronização na ItemsList
+5. **Sistema de Validação** - Validação em tempo real com feedback visual instantâneo
 
 ### ✅ Funcionalidades Entregues
 1. **Armazenamento Local (Task 2.4)** - Itens editados são persistidos no IndexedDB
 2. **Indicadores de Status (Task 2.7)** - Status visual de sincronização para cada item
 3. **Progresso Automático** - Cálculo automático do progresso da vistoria
 4. **Interface Atualizada** - Lista de itens com indicadores de sincronização
+5. **Validação de Campos (Task 2.2)** - Sistema completo de validação com feedback instantâneo
 
 ### 🔄 Próximas Prioridades
-1. Implementar validações de campos (Task 2.2)
-2. Integrar com endpoints do backend (Task 2.5)
-3. Implementar fila de sincronização (Task 2.6)
-4. Criar tratamento robusto de erros (Task 2.8)
+1. Integrar com endpoints do backend (Task 2.5)
+2. Implementar fila de sincronização (Task 2.6)
+3. Criar tratamento robusto de erros (Task 2.8)
+4. Iniciar Task 3: Conclusão de Vistoria
 
 ## Notas Adicionais
 
