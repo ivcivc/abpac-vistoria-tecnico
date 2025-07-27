@@ -263,16 +263,53 @@ export class LocalVistoriaService {
       }
 
       // Encontrar e atualizar o item usando estoque_remessa_id como ID principal
-      const itemIndex = vistoria.itens.findIndex((item: any) => 
-        item.estoque_remessa_id === (itemAtualizado as any).estoque_remessa_id ||
-        item.id === itemAtualizado.id
+      // Buscar por estoque_remessa_id primeiro (mais confiável)
+      let itemIndex = vistoria.itens.findIndex((item: any) => 
+        item.estoque_remessa_id === (itemAtualizado as any).estoque_remessa_id
       );
       
+      // Se não encontrou por estoque_remessa_id, buscar por id
       if (itemIndex === -1) {
+        itemIndex = vistoria.itens.findIndex((item: any) => 
+          item.id === itemAtualizado.id
+        );
+      }
+      
+      if (itemIndex === -1) {
+        console.warn(`⚠️ Item não encontrado na vistoria ${vistoriaId}:`, {
+          itemAtualizado_id: itemAtualizado.id,
+          itemAtualizado_estoque_remessa_id: (itemAtualizado as any).estoque_remessa_id,
+          itens_existentes: vistoria.itens.map((item: any) => ({
+            id: item.id,
+            estoque_remessa_id: item.estoque_remessa_id
+          }))
+        });
         return {
           success: false,
           error: 'Item não encontrado na vistoria',
         };
+      }
+
+      // Verificar se há duplicados antes de atualizar
+      const itemKey = (itemAtualizado as any).estoque_remessa_id || itemAtualizado.id;
+      const duplicados = vistoria.itens.filter((item: any, index: number) => {
+        const currentKey = item.estoque_remessa_id || item.id;
+        return currentKey === itemKey && index !== itemIndex;
+      });
+
+      if (duplicados.length > 0) {
+        console.warn(`🔧 Removendo ${duplicados.length} item(s) duplicado(s) para ${itemKey}`);
+        // Remover duplicados mantendo apenas o que será atualizado
+        vistoria.itens = vistoria.itens.filter((item: any, index: number) => {
+          const currentKey = item.estoque_remessa_id || item.id;
+          return currentKey !== itemKey || index === itemIndex;
+        });
+        
+        // Recalcular índice após remoção de duplicados
+        itemIndex = vistoria.itens.findIndex((item: any) => 
+          (item.estoque_remessa_id === (itemAtualizado as any).estoque_remessa_id) ||
+          (item.id === itemAtualizado.id)
+        );
       }
 
       // Atualizar o item
@@ -296,6 +333,84 @@ export class LocalVistoriaService {
       return {
         success: false,
         error: 'Erro interno ao atualizar item',
+      };
+    }
+  }
+
+  /**
+   * Limpa duplicações de itens em uma vistoria específica
+   */
+  async limparDuplicacoes(vistoriaId: string): Promise<ServiceResult> {
+    try {
+      console.log(`🔧 [LOCAL-SERVICE] Limpando duplicações na vistoria ${vistoriaId}`);
+      
+      // Obter a vistoria atual
+      const vistoriaResult = await this.obterVistoriaPorId(vistoriaId);
+
+      if (!vistoriaResult.success || !vistoriaResult.data) {
+        return {
+          success: false,
+          error: 'Vistoria não encontrada',
+        };
+      }
+
+      const vistoria = vistoriaResult.data;
+
+      // Verificar se a vistoria tem itens
+      if (!vistoria.itens || !Array.isArray(vistoria.itens)) {
+        return {
+          success: true,
+          message: 'Vistoria não possui itens para limpar',
+        };
+      }
+
+      const itensOriginais = vistoria.itens.length;
+      const itensUnicos: any[] = [];
+      const itensVistos = new Set();
+      let duplicadosRemovidos = 0;
+
+      // Processar itens removendo duplicados
+      vistoria.itens.forEach((item: any) => {
+        const itemKey = item.estoque_remessa_id || item.id;
+        
+        if (!itensVistos.has(itemKey)) {
+          itensVistos.add(itemKey);
+          itensUnicos.push(item);
+        } else {
+          duplicadosRemovidos++;
+          console.log(`🗑️ Removendo item duplicado: ${itemKey} (status: ${item.status})`);
+        }
+      });
+
+      // Atualizar apenas se houve mudanças
+      if (duplicadosRemovidos > 0) {
+        const vistoriaAtualizada = {
+          ...vistoria,
+          itens: itensUnicos,
+          dataAcesso: new Date().toISOString(),
+        };
+
+        const updateResult = await this.crudService.update(STORES.VISTORIAS_LOCAIS, vistoriaAtualizada);
+
+        if (updateResult.success) {
+          console.log(`✅ Duplicações removidas da vistoria ${vistoriaId}: ${duplicadosRemovidos} itens duplicados removidos (${itensOriginais} → ${itensUnicos.length})`);
+        }
+
+        return {
+          ...updateResult,
+          message: `${duplicadosRemovidos} duplicações removidas`,
+        };
+      } else {
+        return {
+          success: true,
+          message: 'Nenhuma duplicação encontrada',
+        };
+      }
+    } catch (error) {
+      console.error('❌ Erro ao limpar duplicações:', error);
+      return {
+        success: false,
+        error: 'Erro interno ao limpar duplicações',
       };
     }
   }
