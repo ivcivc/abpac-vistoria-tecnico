@@ -30,6 +30,16 @@ export function ItemsList({ itens, onItemSelect, selectedItemId }: ItemsListProp
   const [filterStatus, setFilterStatus] = useState<FilterStatus>('todos');
   const [viewMode, setViewMode] = useState<ViewMode>('list');
 
+  const getItemStatus = (item: any): FilterStatus => {
+    if (item.concluido === true || item.status === 'concluido') {
+      return 'concluido';
+    }
+    if (item.status === 'problema') {
+      return 'problema';
+    }
+    return 'pendente';
+  };
+
   // Filtrar e ordenar itens
   const filteredItems = useMemo(() => {
     let filtered = itens || [];
@@ -66,17 +76,7 @@ export function ItemsList({ itens, onItemSelect, selectedItemId }: ItemsListProp
     });
 
     return filtered;
-  }, [itens, searchTerm, filterStatus]);
-
-  const getItemStatus = (item: any): FilterStatus => {
-    if (item.concluido === true || item.status === 'concluido') {
-      return 'concluido';
-    }
-    if (item.status === 'problema') {
-      return 'problema';
-    }
-    return 'pendente';
-  };
+  }, [itens, searchTerm, filterStatus, getItemStatus]);
 
   const getStatusIcon = (status: FilterStatus) => {
     switch (status) {
