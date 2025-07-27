@@ -46,11 +46,13 @@ src/
 ## Fluxo de Dados
 
 ### 1. Autenticacao
+
 ```
 Login -> Validacao Token -> AuthContext -> LocalStorage -> API Calls
 ```
 
 ### 2. Vistoria Offline
+
 ```
 Inicio Vistoria -> Download Dados -> IndexedDB -> 
 Trabalho Offline -> Queue Sync -> Conectividade? -> 
@@ -58,6 +60,7 @@ Sincronizacao (se online) ou Manter Local (se offline)
 ```
 
 ### 3. Gerenciamento de Estado
+
 ```
 UI Component -> Custom Hook -> Context -> Service -> IndexedDB/API
 ```
@@ -234,4 +237,4 @@ NEXT_PUBLIC_ENVIRONMENT=development
 
 - **Error Rate**: > 1%
 - **Performance**: LCP > 2.5s
-- **Availability**: < 99%
+- **Availability**: < 99% 
