@@ -130,8 +130,19 @@ export function ProgressIndicator({ progresso, itens = [], compact = false }: Pr
               Resumo por Categoria
             </h4>
             <div className="space-y-2">
-              {Array.from(new Set(itens.map(item => item.categoria).filter(Boolean))).map((categoria, index) => {
-                const itensDaCategoria = itens.filter(item => item.categoria === categoria);
+              {Array.from(new Set(itens.map(item => {
+                // Garantir que categoria seja sempre string
+                if (typeof item.categoria === 'string') return item.categoria;
+                if (typeof item.categoria === 'object' && item.categoria?.descricao) return item.categoria.descricao;
+                if (typeof item.categoria === 'object' && item.categoria?.nome) return item.categoria.nome;
+                return 'Sem Categoria';
+              }).filter(Boolean))).map((categoria, index) => {
+                const itensDaCategoria = itens.filter(item => {
+                  const itemCategoria = typeof item.categoria === 'string' 
+                    ? item.categoria 
+                    : (item.categoria?.descricao || item.categoria?.nome || 'Sem Categoria');
+                  return itemCategoria === categoria;
+                });
                 const concluidos = itensDaCategoria.filter(item => 
                   item.concluido === true || item.status === 'concluido'
                 ).length;
