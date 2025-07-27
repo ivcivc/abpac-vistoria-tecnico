@@ -35,17 +35,19 @@ export function useVistoria(vistoriaId: string): UseVistoriaReturn {
   /**
    * Calcula o progresso da vistoria baseado nos itens concluídos
    */
-  const calcularProgresso = (vistoria: VistoriaLocal): number => {
-    if (!vistoria.itens || vistoria.itens.length === 0) {
-      return 0;
-    }
+     const calcularProgresso = (vistoria: VistoriaLocal): number => {
+     const itens = Array.isArray(vistoria.itens) ? vistoria.itens : [];
+     
+     if (itens.length === 0) {
+       return 0;
+     }
 
-    const itensConcluidos = vistoria.itens.filter(
-      item => item.status === 'concluido' || item.concluido === true
-    ).length;
+     const itensConcluidos = itens.filter(
+       item => item.status === 'concluido' || item.concluido === true
+     ).length;
 
-    return Math.round((itensConcluidos / vistoria.itens.length) * 100);
-  };
+     return Math.round((itensConcluidos / itens.length) * 100);
+   };
 
   /**
    * Carrega os dados da vistoria do armazenamento local

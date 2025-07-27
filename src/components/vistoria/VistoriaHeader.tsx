@@ -189,11 +189,11 @@ export function VistoriaHeader({ vistoria, progresso }: VistoriaHeaderProps) {
                     Progresso: {progresso}%
                   </span>
                 </div>
-                {vistoria.itens && (
-                  <p className="text-gray-600 dark:text-gray-400">
-                    Itens: {vistoria.itens.length} total
-                  </p>
-                )}
+                                 {Array.isArray(vistoria.itens) && vistoria.itens.length > 0 && (
+                   <p className="text-gray-600 dark:text-gray-400">
+                     Itens: {vistoria.itens.length} total
+                   </p>
+                 )}
               </div>
             </div>
           </div>

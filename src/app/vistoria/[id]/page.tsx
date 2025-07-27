@@ -1,5 +1,3 @@
-'use client';
-
 import { Suspense } from 'react';
 import { VistoriaDetailsContent } from '@/components/vistoria/VistoriaDetailsContent';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
@@ -42,7 +40,7 @@ function VistoriaPageLoading() {
             <div className="animate-pulse space-y-4">
               <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded w-1/3"></div>
               {[...Array(3)].map((_, i) => (
-                <div key={i} className="h-20 bg-gray-200 dark:bg-gray-700 rounded"></div>
+                <div key={`skeleton-item-${i}`} className="h-20 bg-gray-200 dark:bg-gray-700 rounded"></div>
               ))}
             </div>
           </div>

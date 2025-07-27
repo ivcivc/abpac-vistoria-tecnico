@@ -130,7 +130,7 @@ export function ProgressIndicator({ progresso, itens = [], compact = false }: Pr
               Resumo por Categoria
             </h4>
             <div className="space-y-2">
-              {Array.from(new Set(itens.map(item => item.categoria).filter(Boolean))).map(categoria => {
+              {Array.from(new Set(itens.map(item => item.categoria).filter(Boolean))).map((categoria, index) => {
                 const itensDaCategoria = itens.filter(item => item.categoria === categoria);
                 const concluidos = itensDaCategoria.filter(item => 
                   item.concluido === true || item.status === 'concluido'
@@ -138,7 +138,7 @@ export function ProgressIndicator({ progresso, itens = [], compact = false }: Pr
                 const percentual = Math.round((concluidos / itensDaCategoria.length) * 100);
 
                 return (
-                  <div key={categoria} className="space-y-1">
+                  <div key={`categoria-${categoria}-${index}`} className="space-y-1">
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-gray-700 dark:text-gray-300">{categoria}</span>
                       <span className="text-gray-600 dark:text-gray-400">

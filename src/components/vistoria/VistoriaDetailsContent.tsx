@@ -26,29 +26,32 @@ export function VistoriaDetailsContent({ vistoriaId }: VistoriaDetailsContentPro
   const [selectedItem, setSelectedItem] = useState<any | null>(null);
   const [selectedItemIndex, setSelectedItemIndex] = useState<number>(-1);
 
-  const handleItemSelect = (item: any) => {
-    setSelectedItem(item);
-    const index = vistoria?.itens?.findIndex(
-      i => i.id === item.id || i.estoque_remessa_id === item.estoque_remessa_id
-    ) || -1;
-    setSelectedItemIndex(index);
-  };
+     const handleItemSelect = (item: any) => {
+     setSelectedItem(item);
+     const itens = Array.isArray(vistoria?.itens) ? vistoria.itens : [];
+     const index = itens.findIndex(
+       i => i.id === item.id || i.estoque_remessa_id === item.estoque_remessa_id
+     );
+     setSelectedItemIndex(index >= 0 ? index : -1);
+   };
 
-  const handlePreviousItem = () => {
-    if (vistoria?.itens && selectedItemIndex > 0) {
-      const newIndex = selectedItemIndex - 1;
-      setSelectedItemIndex(newIndex);
-      setSelectedItem(vistoria.itens[newIndex]);
-    }
-  };
+     const handlePreviousItem = () => {
+     const itens = Array.isArray(vistoria?.itens) ? vistoria.itens : [];
+     if (itens.length > 0 && selectedItemIndex > 0) {
+       const newIndex = selectedItemIndex - 1;
+       setSelectedItemIndex(newIndex);
+       setSelectedItem(itens[newIndex]);
+     }
+   };
 
-  const handleNextItem = () => {
-    if (vistoria?.itens && selectedItemIndex < vistoria.itens.length - 1) {
-      const newIndex = selectedItemIndex + 1;
-      setSelectedItemIndex(newIndex);
-      setSelectedItem(vistoria.itens[newIndex]);
-    }
-  };
+   const handleNextItem = () => {
+     const itens = Array.isArray(vistoria?.itens) ? vistoria.itens : [];
+     if (itens.length > 0 && selectedItemIndex < itens.length - 1) {
+       const newIndex = selectedItemIndex + 1;
+       setSelectedItemIndex(newIndex);
+       setSelectedItem(itens[newIndex]);
+     }
+   };
 
   const handleEdit = (item: any) => {
     // TODO: Implementar modal de edição (Task 2)
@@ -165,14 +168,14 @@ export function VistoriaDetailsContent({ vistoriaId }: VistoriaDetailsContentPro
           <VistoriaHeader vistoria={vistoria} progresso={progresso} />
 
           {/* Indicador de Progresso */}
-          <ProgressIndicator progresso={progresso} itens={vistoria.itens} />
+          <ProgressIndicator progresso={progresso} itens={Array.isArray(vistoria.itens) ? vistoria.itens : []} />
 
           {/* Layout de duas colunas para itens e detalhes */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Lista de Itens (2/3 da largura) */}
             <div className="lg:col-span-2">
               <ItemsList
-                itens={vistoria.itens || []}
+                itens={Array.isArray(vistoria.itens) ? vistoria.itens : []}
                 onItemSelect={handleItemSelect}
                 selectedItemId={selectedItem?.id || selectedItem?.estoque_remessa_id?.toString()}
               />
@@ -182,7 +185,7 @@ export function VistoriaDetailsContent({ vistoriaId }: VistoriaDetailsContentPro
             <div className="lg:col-span-1">
               <div className="space-y-4">
                 {/* Navegação entre itens */}
-                {selectedItem && vistoria.itens && vistoria.itens.length > 1 && (
+                                 {selectedItem && Array.isArray(vistoria.itens) && vistoria.itens.length > 1 && (
                   <Card>
                     <CardContent className="p-4">
                       <div className="flex items-center justify-between">
@@ -195,14 +198,14 @@ export function VistoriaDetailsContent({ vistoriaId }: VistoriaDetailsContentPro
                           <ChevronLeft className="h-4 w-4 mr-1" />
                           Anterior
                         </Button>
-                        <span className="text-sm text-gray-600 dark:text-gray-400">
-                          {selectedItemIndex + 1} de {vistoria.itens.length}
-                        </span>
+                                                 <span className="text-sm text-gray-600 dark:text-gray-400">
+                           {selectedItemIndex + 1} de {Array.isArray(vistoria.itens) ? vistoria.itens.length : 0}
+                         </span>
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={handleNextItem}
-                          disabled={selectedItemIndex >= vistoria.itens.length - 1}
+                                                     disabled={selectedItemIndex >= (Array.isArray(vistoria.itens) ? vistoria.itens.length : 0) - 1}
                         >
                           Próximo
                           <ChevronRight className="h-4 w-4 ml-1" />
