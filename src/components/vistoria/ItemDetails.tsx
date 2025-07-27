@@ -83,9 +83,19 @@ export function ItemDetails({ item, onEdit, onAddEvidence }: ItemDetailsProps) {
 
   const formatItemInfo = (item: any) => {
     const parts = [];
-    if (item.categoria) parts.push(item.categoria);
-    if (item.fabricante) parts.push(item.fabricante);
-    if (item.modelo) parts.push(item.modelo);
+    
+    // Categoria é um objeto com campo 'descricao'
+    if (item?.categoria && typeof item.categoria === 'object' && item.categoria.descricao) {
+      parts.push(item.categoria.descricao);
+    }
+    
+    // Fabricante é um objeto com campo 'nome'  
+    if (item?.fabricante && typeof item.fabricante === 'object' && item.fabricante.nome) {
+      parts.push(item.fabricante.nome);
+    }
+    
+    // Não existe campo 'modelo' diretamente no backend real
+    
     return parts.join(' - ') || 'Item sem descrição';
   };
 
@@ -100,10 +110,10 @@ export function ItemDetails({ item, onEdit, onAddEvidence }: ItemDetailsProps) {
             <span>Detalhes do Item</span>
           </div>
           <div className="flex items-center space-x-2">
-            <Badge className={getStatusColor(status)}>
+            <div className={`flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(status)}`}>
               {getStatusIcon(status)}
-              <span className="ml-1">{getStatusText(status)}</span>
-            </Badge>
+              <span>{getStatusText(status)}</span>
+            </div>
           </div>
         </CardTitle>
       </CardHeader>
@@ -164,7 +174,7 @@ export function ItemDetails({ item, onEdit, onAddEvidence }: ItemDetailsProps) {
         </div>
 
         {/* Especificações Técnicas */}
-        {(item.categoria || item.fabricante || item.modelo) && (
+        {(item.categoria || item.fabricante) && (
           <div className="space-y-4">
             <div className="flex items-start space-x-3">
               <Settings className="h-5 w-5 text-gray-400 mt-0.5" />
@@ -173,35 +183,35 @@ export function ItemDetails({ item, onEdit, onAddEvidence }: ItemDetailsProps) {
                   Especificações Técnicas
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                  {item.categoria && (
+                  {item.categoria && typeof item.categoria === 'object' && item.categoria.descricao && (
                     <div>
                       <label className="font-medium text-gray-700 dark:text-gray-300">
                         Categoria:
                       </label>
                       <p className="text-gray-600 dark:text-gray-400 mt-1">
-                        {item.categoria}
+                        {item.categoria.descricao}
                       </p>
                     </div>
                   )}
                   
-                  {item.fabricante && (
+                  {item.fabricante && typeof item.fabricante === 'object' && item.fabricante.nome && (
                     <div>
                       <label className="font-medium text-gray-700 dark:text-gray-300">
                         Fabricante:
                       </label>
                       <p className="text-gray-600 dark:text-gray-400 mt-1">
-                        {item.fabricante}
+                        {item.fabricante.nome}
                       </p>
                     </div>
                   )}
                   
-                  {item.modelo && (
+                  {item.fabricante && typeof item.fabricante === 'object' && item.fabricante.status && (
                     <div>
                       <label className="font-medium text-gray-700 dark:text-gray-300">
-                        Modelo:
+                        Status Fabricante:
                       </label>
                       <p className="text-gray-600 dark:text-gray-400 mt-1">
-                        {item.modelo}
+                        {item.fabricante.status}
                       </p>
                     </div>
                   )}
@@ -230,23 +240,23 @@ export function ItemDetails({ item, onEdit, onAddEvidence }: ItemDetailsProps) {
           </div>
         )}
 
-        {/* Evidências */}
+        {/* Fotos e Vídeos (estrutura real do backend) */}
         <div className="space-y-4">
           <div className="flex items-start space-x-3">
             <Camera className="h-5 w-5 text-gray-400 mt-0.5" />
             <div className="flex-1">
               <h3 className="font-semibold text-gray-900 dark:text-white mb-2">
-                Evidências
+                Fotos e Vídeos
               </h3>
-              {item.evidencias && item.evidencias.length > 0 ? (
+              {item.fotos_videos && item.fotos_videos.length > 0 ? (
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                  {item.evidencias.map((evidencia: any, index: number) => (
+                  {item.fotos_videos.map((media: any, index: number) => (
                     <div key={index} className="relative group">
                       <div className="aspect-square bg-gray-100 dark:bg-gray-800 rounded-lg overflow-hidden">
-                        {evidencia.tipo === 'foto' ? (
+                        {media.tipo === 'foto' || media.type === 'image' ? (
                           <img
-                            src={evidencia.url || evidencia.localUrl}
-                            alt={evidencia.descricao || `Evidência ${index + 1}`}
+                            src={media.url || media.localUrl || media.path}
+                            alt={media.descricao || `Foto ${index + 1}`}
                             className="w-full h-full object-cover"
                           />
                         ) : (
@@ -255,9 +265,9 @@ export function ItemDetails({ item, onEdit, onAddEvidence }: ItemDetailsProps) {
                           </div>
                         )}
                       </div>
-                      {evidencia.descricao && (
+                      {media.descricao && (
                         <p className="text-xs text-gray-600 dark:text-gray-400 mt-1 truncate">
-                          {evidencia.descricao}
+                          {media.descricao}
                         </p>
                       )}
                     </div>
@@ -267,7 +277,7 @@ export function ItemDetails({ item, onEdit, onAddEvidence }: ItemDetailsProps) {
                 <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-8 text-center">
                   <Camera className="h-8 w-8 text-gray-400 mx-auto mb-2" />
                   <p className="text-sm text-gray-600 dark:text-gray-400">
-                    Nenhuma evidência adicionada
+                    Nenhuma foto ou vídeo adicionado
                   </p>
                 </div>
               )}

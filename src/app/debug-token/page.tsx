@@ -3,11 +3,13 @@
 import { useState, useEffect } from 'react';
 import { API_CONFIG } from '@/config/api';
 
+
 export default function DebugTokenPage() {
   const [userToken] = useState('1da66df8d2b911ed2007a7923ae6b79ce8eb6067ad7308453976e5cd3e7427cf');
   const [loading, setLoading] = useState(false);
   const [backendResponse, setBackendResponse] = useState<any>(null);
-  const [error, setError] = useState<string>('');
+  const [error, setError] = useState<string | null>(null);
+
 
   const testSpecificToken = async () => {
     setLoading(true);
@@ -63,6 +65,8 @@ export default function DebugTokenPage() {
       setLoading(false);
     }
   };
+
+
 
   // Teste automático ao carregar
   useEffect(() => {
@@ -171,6 +175,8 @@ export default function DebugTokenPage() {
               >
                 {loading ? '⏳ Testando...' : '🔄 Testar Novamente'}
               </button>
+
+              
 
               {analysis && (
                 <div

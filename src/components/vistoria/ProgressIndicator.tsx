@@ -123,47 +123,6 @@ export function ProgressIndicator({ progresso, itens = [], compact = false }: Pr
           </div>
         </div>
 
-        {/* Resumo por Categoria (se disponível) */}
-        {itens.length > 0 && (
-          <div className="space-y-3">
-            <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              Resumo por Categoria
-            </h4>
-            <div className="space-y-2">
-              {Array.from(new Set(itens.map(item => {
-                // Garantir que categoria seja sempre string
-                if (typeof item.categoria === 'string') return item.categoria;
-                if (typeof item.categoria === 'object' && item.categoria?.descricao) return item.categoria.descricao;
-                if (typeof item.categoria === 'object' && item.categoria?.nome) return item.categoria.nome;
-                return 'Sem Categoria';
-              }).filter(Boolean))).map((categoria, index) => {
-                const itensDaCategoria = itens.filter(item => {
-                  const itemCategoria = typeof item.categoria === 'string' 
-                    ? item.categoria 
-                    : (item.categoria?.descricao || item.categoria?.nome || 'Sem Categoria');
-                  return itemCategoria === categoria;
-                });
-                const concluidos = itensDaCategoria.filter(item => 
-                  item.concluido === true || item.status === 'concluido'
-                ).length;
-                const percentual = Math.round((concluidos / itensDaCategoria.length) * 100);
-
-                return (
-                  <div key={`categoria-${categoria}-${index}`} className="space-y-1">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-gray-700 dark:text-gray-300">{categoria}</span>
-                      <span className="text-gray-600 dark:text-gray-400">
-                        {concluidos}/{itensDaCategoria.length} ({percentual}%)
-                      </span>
-                    </div>
-                    <Progress value={percentual} className="h-1.5" />
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
         {/* Próximos Passos */}
         {progresso < 100 && (
           <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">

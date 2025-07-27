@@ -48,6 +48,9 @@ Este documento complementa o plano de implementação principal, fornecendo deta
 - Calcular porcentagem de itens concluídos
 - Implementar visualização gráfica do progresso
 - Adicionar mensagens contextuais baseadas no progresso
+- ~~Implementar barras de progresso por categoria~~ **REMOVIDO** - Simplificado para economizar espaço
+- Implementar estatísticas detalhadas (concluídos, pendentes, problemas)
+- Adicionar seção "Próximos Passos" com orientações contextuais
 
 #### 1.8. Adicionar botão de conclusão
 - Implementar botão fixo no rodapé

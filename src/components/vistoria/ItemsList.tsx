@@ -46,12 +46,20 @@ export function ItemsList({ itens, onItemSelect, selectedItemId }: ItemsListProp
 
     // Filtro por texto
     if (searchTerm) {
-      filtered = filtered.filter(item =>
-        item.categoria?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.fabricante?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.modelo?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.observacoes?.toLowerCase().includes(searchTerm.toLowerCase())
-      );
+      filtered = filtered.filter(item => {
+        const searchLower = searchTerm.toLowerCase();
+        
+        // Buscar na descrição da categoria (objeto)
+        const categoriaMatch = item.categoria?.descricao?.toLowerCase().includes(searchLower);
+        
+        // Buscar no nome do fabricante (objeto)
+        const fabricanteMatch = item.fabricante?.nome?.toLowerCase().includes(searchLower);
+        
+        // Buscar nas observações
+        const observacoesMatch = item.observacoes?.toLowerCase().includes(searchLower);
+        
+        return categoriaMatch || fabricanteMatch || observacoesMatch;
+      });
     }
 
     // Filtro por status
@@ -107,9 +115,19 @@ export function ItemsList({ itens, onItemSelect, selectedItemId }: ItemsListProp
 
   const formatItemInfo = (item: any) => {
     const parts = [];
-    if (item.categoria) parts.push(item.categoria);
-    if (item.fabricante) parts.push(item.fabricante);
-    if (item.modelo) parts.push(item.modelo);
+    
+    // Categoria é um objeto com campo 'descricao'
+    if (item?.categoria && typeof item.categoria === 'object' && item.categoria.descricao) {
+      parts.push(item.categoria.descricao);
+    }
+    
+    // Fabricante é um objeto com campo 'nome'  
+    if (item?.fabricante && typeof item.fabricante === 'object' && item.fabricante.nome) {
+      parts.push(item.fabricante.nome);
+    }
+    
+    // Não existe campo 'modelo' diretamente no backend real
+    
     return parts.join(' - ') || 'Item sem descrição';
   };
 

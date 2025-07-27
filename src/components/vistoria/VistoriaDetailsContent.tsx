@@ -6,6 +6,8 @@ import { VistoriaHeader } from './VistoriaHeader';
 import { ProgressIndicator } from './ProgressIndicator';
 import { ItemsList } from './ItemsList';
 import { ItemDetails } from './ItemDetails';
+import { ItemEditModal } from './ItemEditModal';
+import { EvidenceModal } from './EvidenceModal';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { useVistoria } from '@/hooks/useVistoria';
@@ -15,7 +17,9 @@ import {
   CheckCircle,
   ChevronLeft,
   ChevronRight,
+  AlertCircle,
 } from 'lucide-react';
+
 
 interface VistoriaDetailsContentProps {
   vistoriaId: string;
@@ -25,47 +29,92 @@ export function VistoriaDetailsContent({ vistoriaId }: VistoriaDetailsContentPro
   const { vistoria, loading, error, progresso, recarregarVistoria, limparErro } = useVistoria(vistoriaId);
   const [selectedItem, setSelectedItem] = useState<any | null>(null);
   const [selectedItemIndex, setSelectedItemIndex] = useState<number>(-1);
+  
+  // Estados dos modais
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [evidenceModalOpen, setEvidenceModalOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState<any | null>(null);
 
-     const handleItemSelect = (item: any) => {
-     setSelectedItem(item);
-     const itens = Array.isArray(vistoria?.itens) ? vistoria.itens : [];
-     const index = itens.findIndex(
-       i => i.id === item.id || i.estoque_remessa_id === item.estoque_remessa_id
-     );
-     setSelectedItemIndex(index >= 0 ? index : -1);
-   };
+  const handleItemSelect = (item: any) => {
+    setSelectedItem(item);
+    const itens = Array.isArray(vistoria?.itens) ? vistoria.itens : [];
+    const index = itens.findIndex(
+      i => i.id === item.id || i.estoque_remessa_id === item.estoque_remessa_id
+    );
+    setSelectedItemIndex(index >= 0 ? index : -1);
+  };
 
-     const handlePreviousItem = () => {
-     const itens = Array.isArray(vistoria?.itens) ? vistoria.itens : [];
-     if (itens.length > 0 && selectedItemIndex > 0) {
-       const newIndex = selectedItemIndex - 1;
-       setSelectedItemIndex(newIndex);
-       setSelectedItem(itens[newIndex]);
-     }
-   };
+  const handlePreviousItem = () => {
+    const itens = Array.isArray(vistoria?.itens) ? vistoria.itens : [];
+    if (itens.length > 0 && selectedItemIndex > 0) {
+      const newIndex = selectedItemIndex - 1;
+      setSelectedItemIndex(newIndex);
+      setSelectedItem(itens[newIndex]);
+    }
+  };
 
-   const handleNextItem = () => {
-     const itens = Array.isArray(vistoria?.itens) ? vistoria.itens : [];
-     if (itens.length > 0 && selectedItemIndex < itens.length - 1) {
-       const newIndex = selectedItemIndex + 1;
-       setSelectedItemIndex(newIndex);
-       setSelectedItem(itens[newIndex]);
-     }
-   };
+  const handleNextItem = () => {
+    const itens = Array.isArray(vistoria?.itens) ? vistoria.itens : [];
+    if (itens.length > 0 && selectedItemIndex < itens.length - 1) {
+      const newIndex = selectedItemIndex + 1;
+      setSelectedItemIndex(newIndex);
+      setSelectedItem(itens[newIndex]);
+    }
+  };
 
   const handleEdit = (item: any) => {
-    // TODO: Implementar modal de edição (Task 2)
-    console.log('Editar item:', item);
+    console.log('✏️ [VistoriaDetailsContent] Abrindo modal de edição para item:', item.id);
+    setEditingItem(item);
+    setEditModalOpen(true);
   };
 
   const handleAddEvidence = (item: any) => {
-    // TODO: Implementar captura de evidência (Task 4)
-    console.log('Adicionar evidência:', item);
+    console.log('📸 [VistoriaDetailsContent] Abrindo modal de evidência para item:', item.id);
+    setEditingItem(item);
+    setEvidenceModalOpen(true);
+  };
+
+  const handleSaveEdit = (updatedItem: any) => {
+    console.log('💾 [VistoriaDetailsContent] Item editado salvo:', updatedItem);
+    
+    // Aqui seria integrado com o serviço real para atualizar o item
+    // Por enquanto, apenas log e atualização local
+    
+    // Atualizar o item selecionado se for o mesmo
+    if (selectedItem && (selectedItem.id === updatedItem.id || selectedItem.estoque_remessa_id === updatedItem.estoque_remessa_id)) {
+      setSelectedItem({ ...selectedItem, ...updatedItem });
+    }
+    
+    // Recarregar a vistoria para atualizar a lista
+    recarregarVistoria();
+  };
+
+  const handleSaveEvidence = (item: any, fotos: any[]) => {
+    console.log('📸 [VistoriaDetailsContent] Evidências salvas:', {
+      itemId: item.id,
+      totalFotos: fotos.length
+    });
+    
+    // Aqui seria integrado com o serviço real para salvar as evidências
+    // Por enquanto, apenas log
+    
+    // Atualizar o item com as novas evidências
+    const updatedItem = {
+      ...item,
+      fotos_videos: [...(item.fotos_videos || []), ...fotos]
+    };
+    
+    if (selectedItem && (selectedItem.id === item.id || selectedItem.estoque_remessa_id === item.estoque_remessa_id)) {
+      setSelectedItem(updatedItem);
+    }
+    
+    // Recarregar a vistoria para atualizar tudo
+    recarregarVistoria();
   };
 
   const handleConcludeVistoria = () => {
     // TODO: Implementar conclusão de vistoria (Task 3)
-    console.log('Concluir vistoria:', vistoriaId);
+    console.log('🏁 [VistoriaDetailsContent] Concluir vistoria:', vistoriaId);
   };
 
   if (loading) {
@@ -254,6 +303,20 @@ export function VistoriaDetailsContent({ vistoriaId }: VistoriaDetailsContentPro
           )}
         </div>
       </div>
+
+             {/* Modais */}
+       <ItemEditModal
+         open={editModalOpen}
+         onClose={() => setEditModalOpen(false)}
+         item={editingItem}
+         onSave={handleSaveEdit}
+       />
+       <EvidenceModal
+         open={evidenceModalOpen}
+         onClose={() => setEvidenceModalOpen(false)}
+         item={editingItem}
+         onSave={handleSaveEvidence}
+       />
     </AuthenticatedLayout>
   );
 } 
