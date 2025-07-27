@@ -8,6 +8,8 @@ import { ItemsList } from './ItemsList';
 import { ItemDetails } from './ItemDetails';
 import { ItemEditModal } from './ItemEditModal';
 import { EvidenceModal } from './EvidenceModal';
+import { LocalVistoriaService } from '@/services/vistoria/LocalVistoriaService';
+import { VistoriaProgressService } from '@/services/vistoria/VistoriaProgressService';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { useVistoria } from '@/hooks/useVistoria';
@@ -74,19 +76,47 @@ export function VistoriaDetailsContent({ vistoriaId }: VistoriaDetailsContentPro
     setEvidenceModalOpen(true);
   };
 
-  const handleSaveEdit = (updatedItem: any) => {
-    console.log('💾 [VistoriaDetailsContent] Item editado salvo:', updatedItem);
+  const handleSaveEdit = async (updatedItem: any) => {
+    console.log('💾 [VistoriaDetailsContent] Salvando item editado:', updatedItem);
     
-    // Aqui seria integrado com o serviço real para atualizar o item
-    // Por enquanto, apenas log e atualização local
-    
-    // Atualizar o item selecionado se for o mesmo
-    if (selectedItem && (selectedItem.id === updatedItem.id || selectedItem.estoque_remessa_id === updatedItem.estoque_remessa_id)) {
-      setSelectedItem({ ...selectedItem, ...updatedItem });
+    try {
+      // Instanciar o serviço local
+      const localService = new LocalVistoriaService();
+      
+      // Atualizar o item no armazenamento local
+      const result = await localService.atualizarItem(vistoriaId, updatedItem);
+      
+      if (result.success) {
+        console.log('✅ [VistoriaDetailsContent] Item salvo com sucesso no armazenamento local');
+        
+        // Atualizar progresso da vistoria
+        const progressService = new VistoriaProgressService();
+        const progressResult = await progressService.atualizarProgressoVistoria(vistoriaId);
+        
+        if (progressResult.success && progressResult.progresso) {
+          console.log(`📊 Progresso atualizado: ${progressResult.progresso.percentualConclusao}% (${progressResult.progresso.itensConcluidos}/${progressResult.progresso.totalItens} itens)`);
+        }
+        
+        // Atualizar o item selecionado se for o mesmo
+        if (selectedItem && (selectedItem.id === updatedItem.id || selectedItem.estoque_remessa_id === updatedItem.estoque_remessa_id)) {
+          setSelectedItem({ ...selectedItem, ...updatedItem });
+        }
+        
+        // Recarregar a vistoria para atualizar a lista e progresso
+        await recarregarVistoria();
+        
+        // TODO: Adicionar à fila de sincronização para envio ao backend
+        // await SyncQueueService.adicionarOperacao('UPDATE_ITEM', updatedItem);
+        
+      } else {
+        console.error('❌ [VistoriaDetailsContent] Erro ao salvar item:', result.error);
+        alert(`Erro ao salvar item: ${result.error}`);
+      }
+      
+    } catch (error) {
+      console.error('💥 [VistoriaDetailsContent] Erro inesperado ao salvar item:', error);
+      alert('Erro inesperado ao salvar. Tente novamente.');
     }
-    
-    // Recarregar a vistoria para atualizar a lista
-    recarregarVistoria();
   };
 
   const handleSaveEvidence = (item: any, fotos: any[]) => {

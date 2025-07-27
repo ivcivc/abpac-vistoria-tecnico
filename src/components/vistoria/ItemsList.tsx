@@ -15,6 +15,7 @@ import {
   AlertTriangle,
   Package,
 } from 'lucide-react';
+import { SyncStatusIndicator, useSyncStatus } from './SyncStatusIndicator';
 
 interface ItemsListProps {
   itens: any[];
@@ -168,17 +169,20 @@ export function ItemsList({ itens, onItemSelect, selectedItemId }: ItemsListProp
                   )}
                 </div>
                 <div className="flex flex-col items-end space-y-1">
-                  <span
-                    className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      status === 'concluido'
-                        ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                        : status === 'problema'
-                        ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
-                        : 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200'
-                    }`}
-                  >
-                    {getStatusText(status)}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`px-2 py-1 rounded-full text-xs font-medium ${
+                        status === 'concluido'
+                          ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                          : status === 'problema'
+                          ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+                          : 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200'
+                      }`}
+                    >
+                      {getStatusText(status)}
+                    </span>
+                    <SyncStatusIndicator status={useSyncStatus(item)} size="sm" />
+                  </div>
                   {item.acao && (
                     <span className="text-xs text-gray-500 dark:text-gray-400">
                       {item.acao}
@@ -226,17 +230,20 @@ export function ItemsList({ itens, onItemSelect, selectedItemId }: ItemsListProp
                   </p>
                 )}
                 <div className="flex justify-between items-center">
-                  <span
-                    className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      status === 'concluido'
-                        ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                        : status === 'problema'
-                        ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
-                        : 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200'
-                    }`}
-                  >
-                    {getStatusText(status)}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`px-2 py-1 rounded-full text-xs font-medium ${
+                        status === 'concluido'
+                          ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                          : status === 'problema'
+                          ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+                          : 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200'
+                      }`}
+                    >
+                      {getStatusText(status)}
+                    </span>
+                    <SyncStatusIndicator status={useSyncStatus(item)} size="sm" />
+                  </div>
                   {item.acao && (
                     <span className="text-xs text-gray-500 dark:text-gray-400">
                       {item.acao}

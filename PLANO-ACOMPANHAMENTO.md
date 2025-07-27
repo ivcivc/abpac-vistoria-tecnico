@@ -39,23 +39,28 @@ Este documento serve para acompanhar o progresso do plano de implementação do 
   - ✅ Integração com SimpleMediaCapture para captura de evidências
 
 #### Task 2: Atualização de Itens da Vistoria
-**Progresso:** 30% - Iniciado ⚠️
+**Progresso:** 60% - Iniciado ⚠️
 **Responsável:** Sistema AI
 **Prazo:** _Em andamento_
 
 - [x] 2.1. Criar formulário de edição de item ✅
 - [ ] 2.2. Implementar validação de campos
 - [x] 2.3. Desenvolver componente de upload de fotos ✅
-- [ ] 2.4. Implementar armazenamento local
+- [x] 2.4. Implementar armazenamento local ✅
 - [ ] 2.5. Integrar com endpoint PUT
 - [ ] 2.6. Implementar fila de sincronização
-- [ ] 2.7. Desenvolver indicadores de status
+- [x] 2.7. Desenvolver indicadores de status ✅
 - [ ] 2.8. Criar tratamento de erros
 
 **Observações:**
 - Modal de edição criado com campos básicos para status, observações e dados executados
 - Modal de evidências implementado com captura de fotos por categoria (número série, local instalação, outras)
-- **PRÓXIMOS PASSOS:** Integrar com serviços reais para persistência e sincronização
+- **IMPLEMENTADO (25/01/2025):**
+  - ✅ Armazenamento local com LocalVistoriaService e IndexedDB
+  - ✅ Cálculo automático de progresso da vistoria (VistoriaProgressService)
+  - ✅ Indicadores visuais de sincronização (SyncStatusIndicator)
+  - ✅ Persistência de edições de itens com atualização de progresso
+- **PRÓXIMOS PASSOS:** Implementar validações de formulário e integração com backend
 
 #### Task 4: Captura e Upload de Evidências
 **Progresso:** 40% - Iniciado ⚠️
@@ -198,7 +203,9 @@ _Nenhuma observação ainda._
 - **Bugs Identificados:** 2 (corrigidos)
 - **Bugs Resolvidos:** 2
 
-## Mudanças Implementadas (24/01/2025)
+## Mudanças Implementadas 
+
+### 24/01/2025
 
 ### ✅ Correções de Bugs
 1. **Problema "[object Object]"** - Corrigido Badge JSX no ItemDetails
@@ -214,6 +221,26 @@ _Nenhuma observação ainda._
 2. Integrar com endpoints do backend
 3. Implementar validações nos formulários
 4. Adicionar sistema de sincronização
+
+### 25/01/2025
+
+### ✅ Implementações de Armazenamento Local
+1. **VistoriaProgressService** - Serviço para cálculo e atualização de progresso
+2. **SyncStatusIndicator** - Componente visual para status de sincronização
+3. **Persistência de Edições** - Integração com LocalVistoriaService no handleSaveEdit
+4. **Indicadores na Lista** - Integração dos indicadores de sincronização na ItemsList
+
+### ✅ Funcionalidades Entregues
+1. **Armazenamento Local (Task 2.4)** - Itens editados são persistidos no IndexedDB
+2. **Indicadores de Status (Task 2.7)** - Status visual de sincronização para cada item
+3. **Progresso Automático** - Cálculo automático do progresso da vistoria
+4. **Interface Atualizada** - Lista de itens com indicadores de sincronização
+
+### 🔄 Próximas Prioridades
+1. Implementar validações de campos (Task 2.2)
+2. Integrar com endpoints do backend (Task 2.5)
+3. Implementar fila de sincronização (Task 2.6)
+4. Criar tratamento robusto de erros (Task 2.8)
 
 ## Notas Adicionais
 
