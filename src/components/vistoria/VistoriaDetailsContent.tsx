@@ -1,35 +1,20 @@
 'use client';
 
 import { useState } from 'react';
-import { AuthenticatedLayout } from '@/components/layout';
-import { VistoriaHeader } from './VistoriaHeader';
-import { ProgressIndicator } from './ProgressIndicator';
-import { ItemsList } from './ItemsList';
-import { ItemDetails } from './ItemDetails';
+import { MobileVistoriaOverview } from '@/components/mobile/MobileVistoriaOverview';
+import { MobileItemsList } from '@/components/mobile/MobileItemsList';
+import { MobileItemEdit } from '@/components/mobile/MobileItemEdit';
 import { ItemEditModal } from './ItemEditModal';
 import { EvidenceModal } from './EvidenceModal';
-import { SyncQueueStatus } from '@/components/sync/SyncQueueStatus';
+import { VistoriaCompletionModal } from './VistoriaCompletionModal';
 import { LocalVistoriaService } from '@/services/vistoria/LocalVistoriaService';
 import { VistoriaProgressService } from '@/services/vistoria/VistoriaProgressService';
 import { ApiVistoriaService } from '@/services/vistoria/ApiVistoriaService';
 import { SyncQueueService } from '@/services/sync/SyncQueueService';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { useVistoria } from '@/hooks/useVistoria';
-import {
-  RefreshCw,
-  AlertTriangle,
-  CheckCircle,
-  ChevronLeft,
-  ChevronRight,
-  AlertCircle,
-  Package,
-} from 'lucide-react';
-
-// Importar toast do arquivo correto
-import { useToast } from '@/components/ui/use-toast';
-import { VistoriaCompletionModal } from './VistoriaCompletionModal';
 import { VistoriaCompletionService } from '@/services/vistoria/VistoriaCompletionService';
+import { useVistoria } from '@/hooks/useVistoria';
+import { useToast } from '@/components/ui/use-toast';
+import { useRouter } from 'next/navigation';
 
 interface VistoriaDetailsContentProps {
   vistoriaId: string;
@@ -37,8 +22,12 @@ interface VistoriaDetailsContentProps {
 
 export function VistoriaDetailsContent({ vistoriaId }: VistoriaDetailsContentProps) {
   const { vistoria, loading, error, progresso, recarregarVistoria, limparErro } = useVistoria(vistoriaId);
-  const [selectedItem, setSelectedItem] = useState<any | null>(null);
-  const [selectedItemIndex, setSelectedItemIndex] = useState<number>(-1);
+  const router = useRouter();
+  const { toast } = useToast();
+  
+  // Estados de navegação mobile
+  const [currentView, setCurrentView] = useState<'overview' | 'items' | 'edit'>('overview');
+  const [editingItemIndex, setEditingItemIndex] = useState<number>(-1);
   
   // Estados dos modais
   const [editModalOpen, setEditModalOpen] = useState(false);
@@ -46,7 +35,6 @@ export function VistoriaDetailsContent({ vistoriaId }: VistoriaDetailsContentPro
   const [editingItem, setEditingItem] = useState<any | null>(null);
   const [completionModalOpen, setCompletionModalOpen] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
-  const { toast } = useToast();
 
   // Log de diagnóstico para verificar itens recebidos
   console.log('📊 [VistoriaDetailsContent] Estado da vistoria:', {
@@ -58,31 +46,67 @@ export function VistoriaDetailsContent({ vistoriaId }: VistoriaDetailsContentPro
     progresso
   });
 
-  const handleItemSelect = (item: any) => {
-    setSelectedItem(item);
-    const itens = Array.isArray(vistoria?.itens) ? vistoria.itens : [];
-    const index = itens.findIndex(
-      i => i.id === item.id || i.estoque_remessa_id === item.estoque_remessa_id
-    );
-    setSelectedItemIndex(index >= 0 ? index : -1);
+  // Handlers de navegação mobile
+  const handleBackToDashboard = () => {
+    router.push('/dashboard');
   };
 
-  const handlePreviousItem = () => {
-    const itens = Array.isArray(vistoria?.itens) ? vistoria.itens : [];
-    if (itens.length > 0 && selectedItemIndex > 0) {
-      const newIndex = selectedItemIndex - 1;
-      setSelectedItemIndex(newIndex);
-      setSelectedItem(itens[newIndex]);
-    }
+  const handleViewItems = () => {
+    setCurrentView('items');
+  };
+
+  const handleBackToOverview = () => {
+    setCurrentView('overview');
+  };
+
+  const handleEditItem = (item: any) => {
+    console.log('🔧 [VistoriaDetailsContent] Abrindo edição mobile para item:', item);
+    const itemIndex = (vistoria?.itens || []).findIndex(
+      i => i.id === item.id || i.estoque_remessa_id === item.estoque_remessa_id
+    );
+    setEditingItemIndex(itemIndex >= 0 ? itemIndex : 0);
+    setEditingItem(item);
+    setCurrentView('edit');
+  };
+
+  const handleBackFromEdit = () => {
+    setCurrentView('items');
+    setEditingItem(null);
+    setEditingItemIndex(-1);
   };
 
   const handleNextItem = () => {
-    const itens = Array.isArray(vistoria?.itens) ? vistoria.itens : [];
-    if (itens.length > 0 && selectedItemIndex < itens.length - 1) {
-      const newIndex = selectedItemIndex + 1;
-      setSelectedItemIndex(newIndex);
-      setSelectedItem(itens[newIndex]);
+    const itens = vistoria?.itens || [];
+    if (editingItemIndex < itens.length - 1) {
+      const nextIndex = editingItemIndex + 1;
+      const nextItem = itens[nextIndex];
+      setEditingItemIndex(nextIndex);
+      setEditingItem(nextItem);
     }
+  };
+
+  const handlePreviousItem = () => {
+    const itens = vistoria?.itens || [];
+    if (editingItemIndex > 0) {
+      const prevIndex = editingItemIndex - 1;
+      const prevItem = itens[prevIndex];
+      setEditingItemIndex(prevIndex);
+      setEditingItem(prevItem);
+    }
+  };
+
+  const handleViewItemDetails = (item: any) => {
+    console.log('👁️ [VistoriaDetailsContent] Visualizando detalhes do item:', item);
+    // TODO: Implementar visualização de detalhes se necessário
+  };
+
+  const handleAddExpense = () => {
+    console.log('💰 [VistoriaDetailsContent] Abrindo modal de despesas');
+    toast({
+      title: "Funcionalidade em Desenvolvimento",
+      description: "A funcionalidade de adicionar despesas será implementada em breve.",
+      variant: "default",
+    });
   };
 
   /**
@@ -271,10 +295,7 @@ export function VistoriaDetailsContent({ vistoriaId }: VistoriaDetailsContentPro
           console.log(`📊 Progresso atualizado: ${progressResult.progresso.percentualConclusao}% (${progressResult.progresso.itensConcluidos}/${progressResult.progresso.totalItens} itens)`);
         }
         
-        // 4. Atualizar interface
-        if (selectedItem && (selectedItem.id === updatedItem.id || selectedItem.estoque_remessa_id === updatedItem.estoque_remessa_id)) {
-          setSelectedItem({ ...selectedItem, ...updatedItem });
-        }
+        // 4. Interface será atualizada automaticamente pelo recarregamento
         
         // Recarregar a vistoria para atualizar a lista e progresso
         console.log('🔄 [VistoriaDetailsContent] Recarregando vistoria após salvamento...');
@@ -323,9 +344,7 @@ export function VistoriaDetailsContent({ vistoriaId }: VistoriaDetailsContentPro
       fotos_videos: [...(item.fotos_videos || []), ...fotos]
     };
     
-    if (selectedItem && (selectedItem.id === item.id || selectedItem.estoque_remessa_id === item.estoque_remessa_id)) {
-      setSelectedItem(updatedItem);
-    }
+    // Interface será atualizada automaticamente
     
     // Recarregar a vistoria para atualizar tudo
     recarregarVistoria();
@@ -411,248 +430,152 @@ export function VistoriaDetailsContent({ vistoriaId }: VistoriaDetailsContentPro
 
   if (loading) {
     return (
-      <AuthenticatedLayout>
-        <div className="container mx-auto p-4 sm:p-6 max-w-6xl">
-          <div className="space-y-6">
-            {/* Header Skeleton */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-              <div className="animate-pulse space-y-4">
-                <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-3/4"></div>
-                <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/2"></div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="h-16 bg-gray-200 dark:bg-gray-700 rounded"></div>
-                  <div className="h-16 bg-gray-200 dark:bg-gray-700 rounded"></div>
-                  <div className="h-16 bg-gray-200 dark:bg-gray-700 rounded"></div>
-                </div>
-              </div>
-            </div>
-
-            {/* Progress Skeleton */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-              <div className="animate-pulse space-y-4">
-                <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded w-1/4"></div>
-                <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded"></div>
-              </div>
-            </div>
-
-            {/* Items List Skeleton */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-              <div className="animate-pulse space-y-4">
-                <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded w-1/3"></div>
-                {[...Array(3)].map((_, i) => (
-                  <div key={i} className="h-20 bg-gray-200 dark:bg-gray-700 rounded"></div>
-                ))}
-              </div>
-            </div>
-          </div>
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600 dark:text-gray-400">Carregando vistoria...</p>
         </div>
-      </AuthenticatedLayout>
+      </div>
     );
   }
 
   if (error) {
     return (
-      <AuthenticatedLayout>
-        <div className="container mx-auto p-4 sm:p-6 max-w-6xl">
-          <Card className="border-red-200 bg-red-50 dark:bg-red-900/20">
-            <CardContent className="p-8 text-center">
-              <AlertTriangle className="h-12 w-12 text-red-600 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-red-800 dark:text-red-200 mb-2">
-                Erro ao carregar vistoria
-              </h3>
-              <p className="text-red-600 dark:text-red-400 mb-4">{error}</p>
-              <div className="space-x-2">
-                <Button onClick={recarregarVistoria} variant="outline">
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  Tentar Novamente
-                </Button>
-                <Button onClick={limparErro}>
-                  Limpar Erro
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center p-4">
+        <div className="text-center">
+          <div className="text-red-500 mb-4">⚠️</div>
+          <h3 className="text-lg font-semibold text-red-800 dark:text-red-200 mb-2">
+            Erro ao carregar vistoria
+          </h3>
+          <p className="text-red-600 dark:text-red-400 mb-4">{error}</p>
+          <button 
+            onClick={recarregarVistoria}
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+          >
+            Tentar Novamente
+          </button>
         </div>
-      </AuthenticatedLayout>
+      </div>
     );
   }
 
   if (!vistoria) {
     return (
-      <AuthenticatedLayout>
-        <div className="container mx-auto p-4 sm:p-6 max-w-6xl">
-          <Card>
-            <CardContent className="p-8 text-center">
-              <AlertTriangle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-                Vistoria não encontrada
-              </h3>
-              <p className="text-gray-600 dark:text-gray-400 mb-4">
-                A vistoria com ID {vistoriaId} não foi encontrada no armazenamento local.
-              </p>
-              <Button onClick={recarregarVistoria}>
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Recarregar
-              </Button>
-            </CardContent>
-          </Card>
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center p-4">
+        <div className="text-center">
+          <div className="text-gray-400 mb-4">📋</div>
+          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+            Vistoria não encontrada
+          </h3>
+          <p className="text-gray-600 dark:text-gray-400 mb-4">
+            A vistoria com ID {vistoriaId} não foi encontrada.
+          </p>
+          <button 
+            onClick={recarregarVistoria}
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+          >
+            Recarregar
+          </button>
         </div>
-      </AuthenticatedLayout>
+      </div>
     );
   }
 
+  // Renderização mobile-first
+  if (currentView === 'edit' && editingItem) {
+    return (
+      <MobileItemEdit
+        item={editingItem}
+        itemIndex={editingItemIndex}
+        totalItems={vistoria?.itens?.length || 0}
+        vistoriaInfo={{
+          local: vistoria.local,
+          id: vistoria.id
+        }}
+        onSave={handleSaveEdit}
+        onBack={handleBackFromEdit}
+        onPrevious={editingItemIndex > 0 ? handlePreviousItem : undefined}
+        onNext={editingItemIndex < (vistoria?.itens?.length || 0) - 1 ? handleNextItem : undefined}
+        onCaptureEvidence={(item) => {
+          setEditingItem(item);
+          setEvidenceModalOpen(true);
+        }}
+      />
+    );
+  }
+
+  if (currentView === 'items') {
+    return (
+      <>
+        <MobileItemsList
+          itens={vistoria.itens || []}
+                     vistoriaInfo={{
+             id: vistoria.id,
+             local: vistoria.local,
+             progresso: {
+               concluidos: 0, // TODO: Calcular itens concluídos
+               total: vistoria.itens?.length || 0
+             }
+           }}
+          onEditItem={handleEditItem}
+          onViewDetails={handleViewItemDetails}
+          onBack={handleBackToOverview}
+        />
+        
+        {/* Modais */}
+        {editingItem && (
+          <ItemEditModal
+            open={editModalOpen}
+            onClose={() => setEditModalOpen(false)}
+            item={editingItem}
+            onSave={handleSaveEdit}
+          />
+        )}
+        
+        {editingItem && (
+          <EvidenceModal
+            open={evidenceModalOpen}
+            onClose={() => setEvidenceModalOpen(false)}
+            item={editingItem}
+            onSave={handleSaveEvidence}
+          />
+        )}
+      </>
+    );
+  }
+
+  // Vista overview da vistoria
   return (
-    <AuthenticatedLayout>
-      <div className="container mx-auto p-4 sm:p-6 max-w-6xl">
-        <div className="space-y-6">
-          {vistoria && (
-            <>
-              <VistoriaHeader vistoria={vistoria} progresso={progresso} />
-              
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                <div className="lg:col-span-2">
-                  <ProgressIndicator progresso={progresso} itens={vistoria.itens || []} />
-                </div>
-                <div>
-                  <SyncQueueStatus />
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div>
-                  <Card className="shadow-md">
-                    <CardContent className="p-4">
-                      {/* Adicionar verificação de itens e aviso se não houver itens */}
-                      {(!vistoria.itens || vistoria.itens.length === 0) && (
-                        <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md mb-4">
-                          <div className="flex items-center">
-                            <AlertCircle className="h-5 w-5 text-yellow-500 mr-2" />
-                            <p className="text-yellow-700 dark:text-yellow-400">
-                              Nenhum item encontrado. Tente recarregar a página.
-                            </p>
-                          </div>
-                          <Button 
-                            variant="outline" 
-                            className="mt-2"
-                            onClick={() => {
-                              console.log('🔄 [VistoriaDetailsContent] Forçando recarga após detecção de 0 itens');
-                              recarregarVistoria();
-                            }}
-                          >
-                            <RefreshCw className="h-4 w-4 mr-2" />
-                            Recarregar
-                          </Button>
-                        </div>
-                      )}
-                      
-                      <ItemsList 
-                        itens={vistoria.itens || []} 
-                        onItemSelect={handleItemSelect}
-                        selectedItemId={selectedItem?.id || selectedItem?.estoque_remessa_id}
-                      />
-                    </CardContent>
-                  </Card>
-                </div>
-                
-                <div>
-                  <Card className="shadow-md">
-                    <CardContent className="p-4">
-                      {selectedItem ? (
-                        <>
-                          <div className="flex justify-between items-center mb-4">
-                            <div className="flex space-x-2">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={handlePreviousItem}
-                                disabled={selectedItemIndex <= 0}
-                              >
-                                <ChevronLeft className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={handleNextItem}
-                                disabled={!vistoria.itens || selectedItemIndex >= vistoria.itens.length - 1}
-                              >
-                                <ChevronRight className="h-4 w-4" />
-                              </Button>
-                            </div>
-                            <div className="text-sm text-muted-foreground">
-                              Item {selectedItemIndex + 1} de {vistoria.itens?.length || 0}
-                            </div>
-                          </div>
-                          
-                          <ItemDetails 
-                            item={selectedItem}
-                            onEdit={() => handleEdit(selectedItem)}
-                            onAddEvidence={() => handleAddEvidence(selectedItem)}
-                            canEdit={canEditVistoria()}
-                          />
-                        </>
-                      ) : (
-                        <div className="p-8 text-center">
-                          <Package className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                          <h3 className="text-lg font-medium mb-2">Selecione um item</h3>
-                          <p className="text-muted-foreground">
-                            Escolha um item da lista para visualizar seus detalhes
-                          </p>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                </div>
-              </div>
-              
-              {/* Botão de conclusão */}
-              {progresso === 100 && (
-                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 flex justify-between items-center">
-                  <div>
-                    <h3 className="text-lg font-medium text-blue-800 dark:text-blue-300">Finalizar Vistoria</h3>
-                    <p className="text-blue-600 dark:text-blue-400">
-                      Todos os itens foram verificados. Você pode concluir a vistoria.
-                    </p>
-                  </div>
-                  <Button onClick={handleConcludeVistoria}>
-                    <CheckCircle className="h-4 w-4 mr-2" />
-                    Concluir Vistoria
-                  </Button>
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      </div>
-      
-      {/* Modais */}
-      {editingItem && (
-        <ItemEditModal
-          open={editModalOpen}
-          onClose={() => setEditModalOpen(false)}
-          item={editingItem}
-          onSave={handleSaveEdit}
-        />
-      )}
-      
-      {editingItem && (
-        <EvidenceModal
-          open={evidenceModalOpen}
-          onClose={() => setEvidenceModalOpen(false)}
-          item={editingItem}
-          onSave={handleSaveEvidence}
-        />
-      )}
+    <>
+      <MobileVistoriaOverview
+        vistoria={{
+          id: vistoria.id,
+          local: vistoria.local,
+          cidade: 'Cidade não informada',
+          veiculo: vistoria.veiculo || { modelo: 'N/A', placa: 'N/A', cor: 'N/A' },
+          status: vistoria.status,
+          tipoVistoria: vistoria.tipoVistoria || 'INSTALACAO',
+          tecnicoNome: vistoria.tecnicoNome,
+          agendadoPara: 'Hoje, 14:30',
+          progresso: {
+            concluidos: 0, // TODO: Calcular itens concluídos
+            total: vistoria.itens?.length || 0
+          }
+        }}
+        onViewItems={handleViewItems}
+        onAddExpense={handleAddExpense}
+        onCompleteVistoria={handleConcludeVistoria}
+        onBack={handleBackToDashboard}
+      />
 
       {/* Modal de Conclusão da Vistoria */}
-      {vistoria && (
-        <VistoriaCompletionModal
-          open={completionModalOpen}
-          onOpenChange={setCompletionModalOpen}
-          vistoria={vistoria}
-          onConfirm={handleCompleteVistoria}
-          loading={isCompleting}
-        />
-      )}
-    </AuthenticatedLayout>
+      <VistoriaCompletionModal
+        open={completionModalOpen}
+        onOpenChange={setCompletionModalOpen}
+        vistoria={vistoria}
+        onConfirm={handleCompleteVistoria}
+        loading={isCompleting}
+      />
+    </>
   );
 } 

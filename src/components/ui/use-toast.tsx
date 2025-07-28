@@ -1,7 +1,7 @@
 import * as React from "react";
 
 const TOAST_LIMIT = 5;
-const TOAST_REMOVE_DELAY = 1000000;
+const TOAST_REMOVE_DELAY = 1000;
 
 type ToastType = "default" | "success" | "warning" | "destructive";
 
@@ -155,6 +155,14 @@ function toast({ ...props }: Toast) {
       duration: props.duration || 5000,
     },
   });
+
+  // Auto-dismiss após a duração especificada
+  const duration = props.duration || 5000;
+  if (duration > 0) {
+    setTimeout(() => {
+      dismiss();
+    }, duration);
+  }
 
   return {
     id,

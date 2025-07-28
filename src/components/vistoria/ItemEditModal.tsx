@@ -137,7 +137,8 @@ export function ItemEditModal({ item, open, onClose, onSave }: ItemEditModalProp
         // Aceitar múltiplos formatos de status (maiúscula, minúscula, etc.)
         const validStatuses = [
           'PENDENTE', 'pendente', 'CONCLUIDO', 'concluido', 
-          'PROBLEMA', 'problema', 'CANCELADO', 'cancelado'
+          'PROBLEMA', 'problema', 'CANCELADO', 'cancelado',
+          'EM_EXECUCAO', 'em_execucao'
         ];
         if (!value || !validStatuses.includes(value)) {
           newErrors[field] = 'Status inválido';
@@ -260,7 +261,8 @@ export function ItemEditModal({ item, open, onClose, onSave }: ItemEditModalProp
     const status_item = (editedItem as any).status_item;
     const validStatuses = [
       'PENDENTE', 'pendente', 'CONCLUIDO', 'concluido', 
-      'PROBLEMA', 'problema', 'CANCELADO', 'cancelado'
+      'PROBLEMA', 'problema', 'CANCELADO', 'cancelado',
+      'EM_EXECUCAO', 'em_execucao'
     ];
     if (!status_item || !validStatuses.includes(status_item)) {
       errors.status_item = 'Status inválido';
