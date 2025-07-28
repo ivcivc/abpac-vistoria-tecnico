@@ -133,7 +133,7 @@ export function ItemEditModal({ item, open, onClose, onSave }: ItemEditModalProp
         }
         break;
 
-      case 'status':
+      case 'status_item':
         const validStatuses = ['PENDENTE', 'CONCLUIDO', 'PROBLEMA', 'CANCELADO'];
         if (!value || !validStatuses.includes(value)) {
           newErrors[field] = 'Status deve ser: PENDENTE, CONCLUIDO, PROBLEMA ou CANCELADO';
@@ -252,11 +252,11 @@ export function ItemEditModal({ item, open, onClose, onSave }: ItemEditModalProp
       }
     }
 
-    // Validação do status
-    const status = (editedItem as any).status;
+    // Validação do status do item (campo correto do banco)
+    const status_item = (editedItem as any).status_item;
     const validStatuses = ['PENDENTE', 'CONCLUIDO', 'PROBLEMA', 'CANCELADO'];
-    if (!status || !validStatuses.includes(status)) {
-      errors.status = 'Status deve ser: PENDENTE, CONCLUIDO, PROBLEMA ou CANCELADO';
+    if (!status_item || !validStatuses.includes(status_item)) {
+      errors.status_item = 'Status deve ser: PENDENTE, CONCLUIDO, PROBLEMA ou CANCELADO';
     }
 
     // Validação de evidências adicionais (opcional mas com limite)
@@ -270,56 +270,105 @@ export function ItemEditModal({ item, open, onClose, onSave }: ItemEditModalProp
 
   // Verifica se todos os campos obrigatórios estão preenchidos
   const isFormValid = (): boolean => {
-    // Se há erros de validação, formulário é inválido
-    if (Object.keys(validationErrors).length > 0) {
+    const acao = (editedItem as any).acao?.toUpperCase();
+    const observacoes = (editedItem as any).observacoes_tecnico?.trim();
+    const numeroSerie = (editedItem as any).numero_serie_executado?.trim();
+    const localInstalacao = (editedItem as any).local_instalacao_executado?.trim();
+    const status_item = (editedItem as any).status_item; // Campo correto do banco
+    
+    // Verificar se a vistoria permite edição
+    const authState = typeof window !== 'undefined' ? 
+      JSON.parse(localStorage.getItem('vistoria_auth_state') || '{}') : {};
+    const currentVistoria = authState?.currentVistoria || {};
+    const vistoriaStatus = currentVistoria?.status;
+    const podeEditarVistoria = ['AGUARDANDO_VISTORIA', 'EM_VISTORIA'].includes(vistoriaStatus);
+    const itemCancelado = status_item === 'CANCELADO';
+    const podeEditar = podeEditarVistoria && !itemCancelado;
+    
+    console.log('🔍 ItemEditModal.isFormValid: Verificando validação', {
+      acao,
+      hasValidationErrors: Object.keys(validationErrors).length > 0,
+      validationErrors,
+      observacoes: observacoes?.length || 0,
+      numeroSerie: numeroSerie?.length || 0,
+      localInstalacao: localInstalacao?.length || 0,
+      status_item,
+      vistoriaStatus,
+      podeEditarVistoria,
+      itemCancelado,
+      podeEditar,
+      fotosNumeroSerie: fotosNumeroSerie.length,
+      fotosLocalInstalacao: fotosLocalInstalacao.length,
+      fotosOutrasEvidencias: fotosOutrasEvidencias.length
+    });
+
+    // Verificar se a vistoria permite edição
+    if (!podeEditarVistoria) {
+      console.log('❌ isFormValid: FALHOU - Vistoria não permite edição', { 
+        vistoriaStatus, 
+        requiredStatus: ['AGUARDANDO_VISTORIA', 'EM_VISTORIA'] 
+      });
+      return false;
+    }
+    
+    // Verificar se o item não está cancelado
+    if (itemCancelado) {
+      console.log('❌ isFormValid: FALHOU - Item cancelado não pode ser editado', { 
+        status_item 
+      });
       return false;
     }
 
-    const acao = (editedItem as any).acao?.toUpperCase();
+    // Se há erros de validação, formulário é inválido
+    if (Object.keys(validationErrors).length > 0) {
+      console.log('❌ isFormValid: FALHOU - Há erros de validação');
+      return false;
+    }
     
     // Observações do técnico são sempre obrigatórias
-    const observacoes = (editedItem as any).observacoes_tecnico?.trim();
     if (!observacoes || observacoes.length < 10) {
+      console.log('❌ isFormValid: FALHOU - Observações insuficientes', { observacoes: observacoes?.length || 0 });
       return false;
     }
 
     // Validações específicas por ação
     if (acao === 'INSTALAR' || acao === 'SUBSTITUIR') {
-      const numeroSerie = (editedItem as any).numero_serie_executado?.trim();
-      const localInstalacao = (editedItem as any).local_instalacao_executado?.trim();
-      
       if (!numeroSerie || numeroSerie.length < 3) {
+        console.log('❌ isFormValid: FALHOU - Número de série insuficiente', { numeroSerie: numeroSerie?.length || 0 });
         return false;
       }
       if (!localInstalacao || localInstalacao.length < 5) {
+        console.log('❌ isFormValid: FALHOU - Local de instalação insuficiente', { localInstalacao: localInstalacao?.length || 0 });
         return false;
       }
       
       // Validar fotos obrigatórias para INSTALAR/SUBSTITUIR
       if (fotosNumeroSerie.length < 1 || fotosLocalInstalacao.length < 1) {
+        console.log('❌ isFormValid: FALHOU - Fotos insuficientes para INSTALAR/SUBSTITUIR', {
+          fotosNumeroSerie: fotosNumeroSerie.length,
+          fotosLocalInstalacao: fotosLocalInstalacao.length
+        });
         return false;
       }
     }
 
     if (acao === 'REMOVER' || acao === 'MANUTENCAO') {
-      const localInstalacao = (editedItem as any).local_instalacao_executado?.trim();
       if (!localInstalacao || localInstalacao.length < 5) {
+        console.log('❌ isFormValid: FALHOU - Local de instalação insuficiente para REMOVER/MANUTENCAO', { localInstalacao: localInstalacao?.length || 0 });
         return false;
       }
       
       // Validar foto obrigatória do local para REMOVER/MANUTENCAO
       if (fotosLocalInstalacao.length < 1) {
+        console.log('❌ isFormValid: FALHOU - Fotos do local insuficientes para REMOVER/MANUTENCAO', {
+          fotosLocalInstalacao: fotosLocalInstalacao.length
+        });
         return false;
       }
     }
 
-    // Validar status
-    const status = (editedItem as any).status;
-    const validStatuses = ['PENDENTE', 'CONCLUIDO', 'PROBLEMA', 'CANCELADO'];
-    if (!status || !validStatuses.includes(status)) {
-      return false;
-    }
-
+    // Status do item individual não é validado aqui - apenas regra da vistoria
+    console.log('✅ isFormValid: PASSOU - Formulário válido');
     return true;
   };
 
@@ -407,7 +456,7 @@ export function ItemEditModal({ item, open, onClose, onSave }: ItemEditModalProp
       // Quando salvar, automaticamente marca como CONCLUIDO
       const updatedItem = {
         ...editedItem,
-        status: 'CONCLUIDO',
+        status_item: 'CONCLUIDO',
         concluido: true,
         dataConclusao: new Date(),
         // Campo fotos_videos usado pelo backend (JSON)
@@ -437,7 +486,7 @@ export function ItemEditModal({ item, open, onClose, onSave }: ItemEditModalProp
       // Salvar mesmo com erro de upload (para não perder dados)
       const updatedItem = {
         ...editedItem,
-        status: 'CONCLUIDO',
+        status_item: 'CONCLUIDO',
         concluido: true,
         dataConclusao: new Date(),
         // Manter apenas referências locais se upload falhou
@@ -1023,7 +1072,16 @@ export function ItemEditModal({ item, open, onClose, onSave }: ItemEditModalProp
               </Button>
               <Button
                 onClick={handleSave}
-                disabled={!hasChanges || !isFormValid() || isUploading}
+                disabled={(() => {
+                  const disabled = !hasChanges || !isFormValid() || isUploading;
+                  console.log('🔘 Botão Salvar e Concluir:', {
+                    hasChanges,
+                    isFormValid: isFormValid(),
+                    isUploading,
+                    disabled
+                  });
+                  return disabled;
+                })()}
                 className="order-1 sm:order-2 h-12 sm:h-10 text-base sm:text-sm bg-green-600 hover:bg-green-700 touch-manipulation flex-1"
               >
                 {isUploading ? (

@@ -7,12 +7,25 @@
 
 // Determinar a URL base da API com base no ambiente
 const getApiBaseUrl = () => {
-  // Verificar se estamos em ambiente de produção
-  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
-    // Em produção, usar a URL de produção
-    return 'https://api.abpac.com.br/api';
+  // Verificar se estamos no navegador
+  if (typeof window !== 'undefined') {
+    // Em produção (hostname diferente de localhost)
+    if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+      return 'https://api.abpac.com.br/api';
+    }
+    
+    // Em desenvolvimento - detectar se frontend está em HTTPS/HTTP
+    // Backend sempre roda em HTTP na porta 3333
+    const frontendProtocol = window.location.protocol;
+    
+    console.log(`🔗 Frontend rodando em: ${frontendProtocol}//${window.location.host}`);
+    console.log(`🔗 Backend configurado para: http://localhost:3333/api`);
+    
+    // Backend sempre em HTTP na porta 3333 para desenvolvimento
+    return 'http://localhost:3333/api';
   }
-  // Em desenvolvimento, usar localhost
+  
+  // Fallback para SSR
   return 'http://localhost:3333/api';
 };
 

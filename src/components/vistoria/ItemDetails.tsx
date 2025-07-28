@@ -19,9 +19,10 @@ interface ItemDetailsProps {
   item: any | null;
   onEdit?: (item: any) => void;
   onAddEvidence?: (item: any) => void;
+  canEdit?: boolean;
 }
 
-export function ItemDetails({ item, onEdit, onAddEvidence }: ItemDetailsProps) {
+export function ItemDetails({ item, onEdit, onAddEvidence, canEdit = true }: ItemDetailsProps) {
   if (!item) {
     return (
       <Card>
@@ -290,7 +291,16 @@ export function ItemDetails({ item, onEdit, onAddEvidence }: ItemDetailsProps) {
           <Button
             onClick={() => onEdit?.(item)}
             className="flex items-center space-x-2"
-            disabled={status === 'concluido'}
+            disabled={!canEdit || status === 'concluido' || item.status_item === 'CANCELADO'}
+                         title={
+               !canEdit 
+                 ? 'Vistoria não permite edição (status deve ser AGUARDANDO_VISTORIA ou EM_VISTORIA)'
+                 : item.status_item === 'CANCELADO'
+                 ? 'Item cancelado não pode ser editado'
+                 : status === 'concluido'
+                 ? 'Item já foi concluído'
+                 : 'Editar este item'
+             }
           >
             <Edit className="h-4 w-4" />
             <span>Editar Item</span>
@@ -300,7 +310,14 @@ export function ItemDetails({ item, onEdit, onAddEvidence }: ItemDetailsProps) {
             variant="outline"
             onClick={() => onAddEvidence?.(item)}
             className="flex items-center space-x-2"
-            disabled={status === 'concluido'}
+            disabled={!canEdit || status === 'concluido'}
+                         title={
+               !canEdit 
+                 ? 'Vistoria não permite edição (status deve ser AGUARDANDO_VISTORIA ou EM_VISTORIA)'
+                 : status === 'concluido'
+                 ? 'Item já foi concluído'
+                 : 'Adicionar evidência a este item'
+             }
           >
             <Camera className="h-4 w-4" />
             <span>Adicionar Evidência</span>

@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "node server.js",
+    "dev:http": "cross-env ENABLE_HTTPS=false node server.js",
+    "dev:https": "cross-env ENABLE_HTTPS=true node server.js",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
@@ -49,6 +51,7 @@
     "@typescript-eslint/eslint-plugin": "^8.38.0",
     "@typescript-eslint/parser": "^8.38.0",
     "autoprefixer": "^10.4.21",
+    "cross-env": "^10.0.0",
     "eslint": "^9",
     "eslint-config-next": "15.4.2",
     "eslint-config-prettier": "^10.1.8",

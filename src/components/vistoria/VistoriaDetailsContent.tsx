@@ -64,7 +64,47 @@ export function VistoriaDetailsContent({ vistoriaId }: VistoriaDetailsContentPro
     }
   };
 
+  // Verificar se a vistoria permite edição
+  const canEditVistoria = () => {
+    // Obter dados do contexto de autenticação (dados do backend)
+    const authState = typeof window !== 'undefined' ? 
+      JSON.parse(localStorage.getItem('vistoria_auth_state') || '{}') : {};
+    const currentVistoria = authState?.currentVistoria || {};
+    
+    // O status vem do backend como "AGUARDANDO_VISTORIA", "EM_VISTORIA", "AGUARDANDO_APROVACAO" etc
+    const vistoriaStatus = currentVistoria?.status;
+    
+    const statusPermiteEdicao = ['AGUARDANDO_VISTORIA', 'EM_VISTORIA'].includes(vistoriaStatus);
+    
+    console.log('🔒 [VistoriaDetailsContent] Verificando permissão de edição:', {
+      vistoriaStatus,
+      statusPermiteEdicao,
+      currentVistoria,
+      authState
+    });
+    
+    return statusPermiteEdicao;
+  };
+
   const handleEdit = (item: any) => {
+    // Verificar se a vistoria permite edição ANTES de abrir o modal
+    if (!canEditVistoria()) {
+      // Obter status do backend para mostrar na mensagem
+      const authState = typeof window !== 'undefined' ? 
+        JSON.parse(localStorage.getItem('vistoria_auth_state') || '{}') : {};
+      const currentVistoria = authState?.currentVistoria || {};
+      const vistoriaStatus = currentVistoria?.status || 'DESCONHECIDO';
+      
+      alert(`❌ Não é possível editar itens!\n\nStatus atual da vistoria: "${vistoriaStatus}"\n\nApenas vistorias com status "AGUARDANDO_VISTORIA" ou "EM_VISTORIA" podem ser editadas.\n\nEsta vistoria está em modo somente leitura.`);
+      return;
+    }
+    
+    // Verificar se o item não está cancelado
+    if (item.status_item === 'CANCELADO') {
+      alert(`❌ Este item está CANCELADO e não pode ser editado.`);
+      return;
+    }
+    
     console.log('✏️ [VistoriaDetailsContent] Abrindo modal de edição para item:', item.id);
     setEditingItem(item);
     setEditModalOpen(true);
@@ -299,6 +339,7 @@ export function VistoriaDetailsContent({ vistoriaId }: VistoriaDetailsContentPro
                   item={selectedItem}
                   onEdit={handleEdit}
                   onAddEvidence={handleAddEvidence}
+                  canEdit={canEditVistoria()}
                 />
               </div>
             </div>
