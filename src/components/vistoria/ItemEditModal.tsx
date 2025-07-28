@@ -134,9 +134,13 @@ export function ItemEditModal({ item, open, onClose, onSave }: ItemEditModalProp
         break;
 
       case 'status_item':
-        const validStatuses = ['PENDENTE', 'CONCLUIDO', 'PROBLEMA', 'CANCELADO'];
+        // Aceitar múltiplos formatos de status (maiúscula, minúscula, etc.)
+        const validStatuses = [
+          'PENDENTE', 'pendente', 'CONCLUIDO', 'concluido', 
+          'PROBLEMA', 'problema', 'CANCELADO', 'cancelado'
+        ];
         if (!value || !validStatuses.includes(value)) {
-          newErrors[field] = 'Status deve ser: PENDENTE, CONCLUIDO, PROBLEMA ou CANCELADO';
+          newErrors[field] = 'Status inválido';
         }
         break;
     }
@@ -252,11 +256,14 @@ export function ItemEditModal({ item, open, onClose, onSave }: ItemEditModalProp
       }
     }
 
-    // Validação do status do item (campo correto do banco)
+    // Validação do status do item - aceitar múltiplos formatos
     const status_item = (editedItem as any).status_item;
-    const validStatuses = ['PENDENTE', 'CONCLUIDO', 'PROBLEMA', 'CANCELADO'];
+    const validStatuses = [
+      'PENDENTE', 'pendente', 'CONCLUIDO', 'concluido', 
+      'PROBLEMA', 'problema', 'CANCELADO', 'cancelado'
+    ];
     if (!status_item || !validStatuses.includes(status_item)) {
-      errors.status_item = 'Status deve ser: PENDENTE, CONCLUIDO, PROBLEMA ou CANCELADO';
+      errors.status_item = 'Status inválido';
     }
 
     // Validação de evidências adicionais (opcional mas com limite)
@@ -268,7 +275,17 @@ export function ItemEditModal({ item, open, onClose, onSave }: ItemEditModalProp
     return Object.keys(errors).length === 0;
   };
 
-  // Verifica se todos os campos obrigatórios estão preenchidos
+  /**
+   * Verifica se todos os campos obrigatórios estão preenchidos e se o item pode ser editado
+   * 
+   * Regras de validação:
+   * 1. Status da Vistoria: Deve ser AGUARDANDO_VISTORIA ou EM_VISTORIA
+   * 2. Status do Item: Não pode ser CANCELADO (único status que bloqueia edição)
+   * 3. Todos os outros status (PENDENTE, CONCLUIDO, PROBLEMA) permitem edição
+   * 4. Campos obrigatórios devem estar preenchidos conforme a ação
+   * 
+   * @see /docs/REGRAS-VALIDACAO.md para documentação completa
+   */
   const isFormValid = (): boolean => {
     const acao = (editedItem as any).acao?.toUpperCase();
     const observacoes = (editedItem as any).observacoes_tecnico?.trim();
@@ -282,7 +299,9 @@ export function ItemEditModal({ item, open, onClose, onSave }: ItemEditModalProp
     const currentVistoria = authState?.currentVistoria || {};
     const vistoriaStatus = currentVistoria?.status;
     const podeEditarVistoria = ['AGUARDANDO_VISTORIA', 'EM_VISTORIA'].includes(vistoriaStatus);
-    const itemCancelado = status_item === 'CANCELADO';
+    
+    // Verificar se item está cancelado - aceitar múltiplos formatos
+    const itemCancelado = status_item === 'CANCELADO' || status_item === 'cancelado';
     const podeEditar = podeEditarVistoria && !itemCancelado;
     
     console.log('🔍 ItemEditModal.isFormValid: Verificando validação', {

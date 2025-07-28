@@ -31,6 +31,14 @@ export function ItemsList({ itens, onItemSelect, selectedItemId }: ItemsListProp
   const [filterStatus, setFilterStatus] = useState<FilterStatus>('todos');
   const [viewMode, setViewMode] = useState<ViewMode>('list');
 
+  // Log detalhado dos itens recebidos
+  console.log(`📋 [ItemsList] Recebido ${itens?.length || 0} itens:`, {
+    itensIds: itens?.map(item => item.id || item.estoque_remessa_id),
+    totalItens: itens?.length || 0,
+    selectedItemId,
+    filterStatus
+  });
+
   const getItemStatus = (item: any): FilterStatus => {
     if (item.concluido === true || item.status === 'concluido') {
       return 'concluido';

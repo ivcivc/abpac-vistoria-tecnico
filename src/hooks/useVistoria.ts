@@ -102,9 +102,25 @@ export function useVistoria(vistoriaId: string): UseVistoriaReturn {
 
   /**
    * Recarrega os dados da vistoria
+   * Forçando uma limpeza do cache para garantir que todos os itens sejam carregados
    */
   const recarregarVistoria = async () => {
+    console.log('🔄 [useVistoria] Forçando recarga completa da vistoria:', vistoriaId);
+    
+    // Limpar o estado atual antes de recarregar
+    setState(prev => ({ 
+      ...prev, 
+      vistoria: null, // Forçar limpeza completa do estado
+      loading: true 
+    }));
+    
+    // Pequeno delay para garantir que o estado seja atualizado
+    await new Promise(resolve => setTimeout(resolve, 50));
+    
+    // Agora recarregar os dados
     await carregarVistoria();
+    
+    console.log('🔄 [useVistoria] Recarga completa finalizada');
   };
 
   /**

@@ -2,8 +2,10 @@ import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import { SimpleAuthProvider } from '@/contexts/SimpleAuthContext';
-import { LocalVistoriaProvider } from '@/contexts/LocalVistoriaContext';
+// import { LocalVistoriaProvider } from '@/contexts/LocalVistoriaContext';
 // import { OfflineProvider } from "@/contexts/OfflineContext"; // DESABILITADO - CAUSANDO ERRO WEBPACK
+import { Toaster } from '@/components/ui/toaster';
+import { ServiceInitializer } from '@/components/providers/ServiceInitializer';
 
 // Configurar a fonte Inter corretamente
 const inter = Inter({
@@ -12,19 +14,10 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: 'Sistema de Vistoria ABPAC - Técnicos',
-  description: 'Sistema de vistoria para técnicos de campo da ABPAC - Funciona offline',
-  generator: 'Next.js',
-  keywords: ['vistoria', 'abpac', 'técnico', 'offline', 'pwa'],
-  authors: [
-    {
-      name: 'ABPAC',
-      url: 'https://abpac.com.br',
-    },
-  ],
-  icons: {
-    icon: '/favicon.svg',
-  },
+  title: 'Sistema de Vistorias ABPAC',
+  description: 'Sistema para técnicos realizarem vistorias de equipamentos de segurança',
+  viewport: 'width=device-width, initial-scale=1',
+  themeColor: '#ffffff',
 };
 
 export const viewport = {
@@ -39,9 +32,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="pt-BR">
       <body className={inter.className}>
         <SimpleAuthProvider>
+          <ServiceInitializer />
           {/* <LocalVistoriaProvider> TEMPORARIAMENTE DESABILITADO PARA DEBUG */}
           {children}
           {/* </LocalVistoriaProvider> */}
+          <Toaster />
         </SimpleAuthProvider>
       </body>
     </html>

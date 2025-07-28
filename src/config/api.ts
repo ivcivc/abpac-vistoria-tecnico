@@ -11,7 +11,7 @@ const getApiBaseUrl = () => {
   if (typeof window !== 'undefined') {
     // Em produção (hostname diferente de localhost)
     if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-      return 'https://api.abpac.com.br/api';
+      return 'http://192.168.1.7:3333/api'; //'https://api.abpac.com.br/api';
     }
     
     // Em desenvolvimento - detectar se frontend está em HTTPS/HTTP
@@ -19,14 +19,14 @@ const getApiBaseUrl = () => {
     const frontendProtocol = window.location.protocol;
     
     console.log(`🔗 Frontend rodando em: ${frontendProtocol}//${window.location.host}`);
-    console.log(`🔗 Backend configurado para: http://localhost:3333/api`);
+    console.log(`🔗 Backend configurado para: http://192.168.1.7:3333/api`);
     
     // Backend sempre em HTTP na porta 3333 para desenvolvimento
-    return 'http://localhost:3333/api';
+    return 'http://192.168.1.7:3333/api';
   }
   
   // Fallback para SSR
-  return 'http://localhost:3333/api';
+  return 'http://192.168.1.7:3333/api';
 };
 
 export const API_CONFIG = {

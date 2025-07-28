@@ -1,4 +1,5 @@
 import { LocalVistoriaService } from './LocalVistoriaService';
+import { STORES } from '@/types/storage';
 
 export interface ProgressoVistoria {
   percentualConclusao: number;
@@ -123,7 +124,7 @@ export class VistoriaProgressService {
       // Salvar no armazenamento local usando o CRUDService
       const crudService = (this.localService as any).crudService;
       const updateResult = await crudService.update(
-        'VISTORIAS_LOCAIS',
+        STORES.VISTORIAS_LOCAIS, // Usar constante do tipo correto
         vistoriaAtualizada
       );
 

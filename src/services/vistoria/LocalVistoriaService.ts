@@ -242,10 +242,13 @@ export class LocalVistoriaService {
    */
   async atualizarItem(vistoriaId: string, itemAtualizado: VistoriaItem): Promise<ServiceResult> {
     try {
+      console.log(`🔄 [LOCAL-SERVICE] Iniciando atualização do item na vistoria ${vistoriaId}...`);
+      
       // Primeiro, obter a vistoria atual
       const vistoriaResult = await this.obterVistoriaPorId(vistoriaId);
 
       if (!vistoriaResult.success || !vistoriaResult.data) {
+        console.error(`❌ [LOCAL-SERVICE] Vistoria ${vistoriaId} não encontrada`);
         return {
           success: false,
           error: 'Vistoria não encontrada',
@@ -256,30 +259,33 @@ export class LocalVistoriaService {
 
       // Verificar se a vistoria tem itens
       if (!vistoria.itens || !Array.isArray(vistoria.itens)) {
+        console.error(`❌ [LOCAL-SERVICE] Vistoria ${vistoriaId} não possui array de itens válido`);
         return {
           success: false,
           error: 'Vistoria não possui itens válidos',
         };
       }
 
-      // Encontrar e atualizar o item usando estoque_remessa_id como ID principal
-      // Buscar por estoque_remessa_id primeiro (mais confiável)
-      let itemIndex = vistoria.itens.findIndex((item: any) => 
-        item.estoque_remessa_id === (itemAtualizado as any).estoque_remessa_id
+      // Log detalhado dos itens antes da atualização
+      console.log(`📊 [LOCAL-SERVICE] Vistoria ${vistoriaId} possui ${vistoria.itens.length} itens antes da atualização:`);
+      vistoria.itens.forEach((item, idx) => {
+        console.log(`   Item ${idx + 1}: id=${item.id}, estoque_remessa_id=${item.estoque_remessa_id}, status=${item.status}`);
+      });
+
+      // Fazer uma cópia profunda dos itens para não modificar o array original diretamente
+      const itensAtualizados = JSON.parse(JSON.stringify(vistoria.itens));
+      console.log(`📊 [LOCAL-SERVICE] Cópia profunda criada com ${itensAtualizados.length} itens`);
+
+      // Encontrar e atualizar o item usando ID único
+      // Buscar por ID primeiro (mais confiável e único)
+      let itemIndex = itensAtualizados.findIndex((item: any) => 
+        item.id === itemAtualizado.id
       );
       
-      // Se não encontrou por estoque_remessa_id, buscar por id
       if (itemIndex === -1) {
-        itemIndex = vistoria.itens.findIndex((item: any) => 
-          item.id === itemAtualizado.id
-        );
-      }
-      
-      if (itemIndex === -1) {
-        console.warn(`⚠️ Item não encontrado na vistoria ${vistoriaId}:`, {
+        console.warn(`⚠️ [LOCAL-SERVICE] Item não encontrado na vistoria ${vistoriaId}:`, {
           itemAtualizado_id: itemAtualizado.id,
-          itemAtualizado_estoque_remessa_id: (itemAtualizado as any).estoque_remessa_id,
-          itens_existentes: vistoria.itens.map((item: any) => ({
+          itens_existentes: itensAtualizados.map((item: any) => ({
             id: item.id,
             estoque_remessa_id: item.estoque_remessa_id
           }))
@@ -290,46 +296,80 @@ export class LocalVistoriaService {
         };
       }
 
-      // Verificar se há duplicados antes de atualizar
-      const itemKey = (itemAtualizado as any).estoque_remessa_id || itemAtualizado.id;
-      const duplicados = vistoria.itens.filter((item: any, index: number) => {
-        const currentKey = item.estoque_remessa_id || item.id;
-        return currentKey === itemKey && index !== itemIndex;
+      console.log(`✅ [LOCAL-SERVICE] Item encontrado na posição ${itemIndex + 1} de ${itensAtualizados.length}`);
+
+      // CORREÇÃO: Usar ID único para identificar duplicados, não estoque_remessa_id
+      // O estoque_remessa_id pode ser igual para vários itens diferentes da mesma remessa
+      const itemUniqueId = itemAtualizado.id;
+      
+      // Verificar se há duplicados REAIS (mesmo ID único)
+      const duplicados = itensAtualizados.filter((item: any, index: number) => {
+        return item.id === itemUniqueId && index !== itemIndex;
       });
 
       if (duplicados.length > 0) {
-        console.warn(`🔧 Removendo ${duplicados.length} item(s) duplicado(s) para ${itemKey}`);
+        console.warn(`🔧 [LOCAL-SERVICE] Removendo ${duplicados.length} item(s) duplicado(s) REAIS para ID ${itemUniqueId}`);
         // Remover duplicados mantendo apenas o que será atualizado
-        vistoria.itens = vistoria.itens.filter((item: any, index: number) => {
-          const currentKey = item.estoque_remessa_id || item.id;
-          return currentKey !== itemKey || index === itemIndex;
+        const itensSemDuplicados = itensAtualizados.filter((item: any, index: number) => {
+          return item.id !== itemUniqueId || index === itemIndex;
         });
         
+        // Atualizar a lista de itens sem duplicados
+        console.log(`📊 [LOCAL-SERVICE] Itens após remoção de duplicados: ${itensSemDuplicados.length}`);
+        itensAtualizados.length = 0;
+        itensAtualizados.push(...itensSemDuplicados);
+        
         // Recalcular índice após remoção de duplicados
-        itemIndex = vistoria.itens.findIndex((item: any) => 
-          (item.estoque_remessa_id === (itemAtualizado as any).estoque_remessa_id) ||
-          (item.id === itemAtualizado.id)
-        );
+        itemIndex = itensAtualizados.findIndex((item: any) => item.id === itemAtualizado.id);
+      } else {
+        console.log(`✅ [LOCAL-SERVICE] Nenhum duplicado encontrado para ID ${itemUniqueId}`);
       }
 
-      // Atualizar o item
-      vistoria.itens[itemIndex] = itemAtualizado;
+      // Atualizar o item específico mantendo os demais
+      const itemAnterior = { ...itensAtualizados[itemIndex] };
+      itensAtualizados[itemIndex] = { 
+        ...itemAtualizado,
+        // Garantir que campos importantes sejam preservados
+        id: itemAnterior.id || itemAtualizado.id,
+        estoque_remessa_id: itemAnterior.estoque_remessa_id || (itemAtualizado as any).estoque_remessa_id
+      };
 
-      // Atualizar a vistoria no armazenamento
+      // Log para verificação
+      console.log(`📊 [LOCAL-SERVICE] Atualizando item ${itemIndex + 1} de ${itensAtualizados.length} itens`);
+      console.log(`📊 [LOCAL-SERVICE] Item anterior:`, itemAnterior);
+      console.log(`📊 [LOCAL-SERVICE] Item atualizado:`, itensAtualizados[itemIndex]);
+
+      // Atualizar a vistoria no armazenamento com todos os itens
       const vistoriaAtualizada = {
         ...vistoria,
+        itens: itensAtualizados,
         dataAcesso: new Date().toISOString(),
       };
+
+      console.log(`📊 [LOCAL-SERVICE] Vistoria atualizada com ${vistoriaAtualizada.itens.length} itens`);
+      
+      // Verificar se todos os itens estão presentes
+      if (vistoriaAtualizada.itens.length !== itensAtualizados.length) {
+        console.error(`❌ [LOCAL-SERVICE] ERRO CRÍTICO: Perda de itens detectada! Original: ${itensAtualizados.length}, Final: ${vistoriaAtualizada.itens.length}`);
+      }
 
       const updateResult = await this.crudService.update(STORES.VISTORIAS_LOCAIS, vistoriaAtualizada);
 
       if (updateResult.success) {
-        console.log(`✅ Item ${itemAtualizado.id} da vistoria ${vistoriaId} atualizado`);
+        console.log(`✅ [LOCAL-SERVICE] Item ${itemAtualizado.id} da vistoria ${vistoriaId} atualizado (${itensAtualizados.length} itens preservados)`);
+        
+        // Verificar se a atualização foi bem-sucedida
+        const verificacao = await this.obterVistoriaPorId(vistoriaId);
+        if (verificacao.success && verificacao.data) {
+          console.log(`✅ [LOCAL-SERVICE] Verificação pós-atualização: Vistoria tem ${verificacao.data.itens?.length || 0} itens`);
+        }
+      } else {
+        console.error(`❌ [LOCAL-SERVICE] Falha ao atualizar vistoria:`, updateResult.error);
       }
 
       return updateResult;
     } catch (error) {
-      console.error('❌ Erro ao atualizar item:', error);
+      console.error('❌ [LOCAL-SERVICE] Erro ao atualizar item:', error);
       return {
         success: false,
         error: 'Erro interno ao atualizar item',
@@ -360,7 +400,7 @@ export class LocalVistoriaService {
       if (!vistoria.itens || !Array.isArray(vistoria.itens)) {
         return {
           success: true,
-          message: 'Vistoria não possui itens para limpar',
+          data: 'Vistoria não possui itens para limpar',
         };
       }
 
@@ -398,12 +438,12 @@ export class LocalVistoriaService {
 
         return {
           ...updateResult,
-          message: `${duplicadosRemovidos} duplicações removidas`,
+          data: `${duplicadosRemovidos} duplicações removidas`,
         };
       } else {
         return {
           success: true,
-          message: 'Nenhuma duplicação encontrada',
+          data: 'Nenhuma duplicação encontrada',
         };
       }
     } catch (error) {
@@ -411,6 +451,90 @@ export class LocalVistoriaService {
       return {
         success: false,
         error: 'Erro interno ao limpar duplicações',
+      };
+    }
+  }
+
+  /**
+   * Verifica a integridade dos dados de uma vistoria
+   * Útil para depuração e validação após operações de atualização
+   */
+  async verificarIntegridade(vistoriaId: string): Promise<ServiceResult<{
+    totalItens: number;
+    itensPorStatus: Record<string, number>;
+    duplicados: number;
+    integridadeOk: boolean;
+  }>> {
+    try {
+      console.log(`🔍 [LOCAL-SERVICE] Verificando integridade da vistoria ${vistoriaId}`);
+      
+      // Obter a vistoria atual
+      const vistoriaResult = await this.obterVistoriaPorId(vistoriaId);
+
+      if (!vistoriaResult.success || !vistoriaResult.data) {
+        return {
+          success: false,
+          error: 'Vistoria não encontrada',
+        };
+      }
+
+      const vistoria = vistoriaResult.data;
+
+      // Verificar se a vistoria tem itens
+      if (!vistoria.itens || !Array.isArray(vistoria.itens)) {
+        return {
+          success: true,
+          data: {
+            totalItens: 0,
+            itensPorStatus: {},
+            duplicados: 0,
+            integridadeOk: true
+          }
+        };
+      }
+
+      // Contagem de itens por status
+      const itensPorStatus: Record<string, number> = {};
+      vistoria.itens.forEach((item: any) => {
+        const status = item.status || 'desconhecido';
+        itensPorStatus[status] = (itensPorStatus[status] || 0) + 1;
+      });
+
+      // Verificar duplicados
+      const itensVistos = new Set();
+      let duplicados = 0;
+
+      vistoria.itens.forEach((item: any) => {
+        const itemKey = item.estoque_remessa_id || item.id;
+        
+        if (itensVistos.has(itemKey)) {
+          duplicados++;
+        } else {
+          itensVistos.add(itemKey);
+        }
+      });
+
+      // Verificar integridade geral
+      const integridadeOk = duplicados === 0;
+
+      const resultado = {
+        totalItens: vistoria.itens.length,
+        itensPorStatus,
+        duplicados,
+        integridadeOk
+      };
+
+      console.log(`📊 [LOCAL-SERVICE] Resultado da verificação de integridade:`, resultado);
+
+      return {
+        success: true,
+        data: resultado
+      };
+    } catch (error) {
+      console.error('❌ Erro ao verificar integridade:', error);
+      return {
+        success: false,
+        error: 'Erro interno ao verificar integridade',
       };
     }
   }

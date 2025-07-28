@@ -291,11 +291,11 @@ export function ItemDetails({ item, onEdit, onAddEvidence, canEdit = true }: Ite
           <Button
             onClick={() => onEdit?.(item)}
             className="flex items-center space-x-2"
-            disabled={!canEdit || status === 'concluido' || item.status_item === 'CANCELADO'}
+            disabled={!canEdit || status === 'concluido' || item.status_item === 'CANCELADO' || item.status_item === 'cancelado'}
                          title={
                !canEdit 
                  ? 'Vistoria não permite edição (status deve ser AGUARDANDO_VISTORIA ou EM_VISTORIA)'
-                 : item.status_item === 'CANCELADO'
+                 : (item.status_item === 'CANCELADO' || item.status_item === 'cancelado')
                  ? 'Item cancelado não pode ser editado'
                  : status === 'concluido'
                  ? 'Item já foi concluído'
