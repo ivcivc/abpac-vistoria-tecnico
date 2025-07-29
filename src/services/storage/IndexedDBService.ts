@@ -1,4 +1,5 @@
 import { STORES, DatabaseStore, StoreNames } from '@/types/storage';
+import { clearIndexedDB, checkIndexedDBHealth } from '@/utils/clearIndexedDB';
 
 /**
  * Serviço para interação com IndexedDB
@@ -8,7 +9,7 @@ export class IndexedDBService {
   private static instance: IndexedDBService;
   private db: IDBDatabase | null = null;
   private readonly dbName = 'VistoriaABPAC';
-  private readonly dbVersion = 3; // Incrementada para incluir DESPESAS e correções
+  private readonly dbVersion = 4; // Forçando recriação completa do banco
 
   // Definição das stores do banco de dados
   private readonly stores: DatabaseStore[] = [
@@ -104,6 +105,15 @@ export class IndexedDBService {
    * Inicializa o banco de dados IndexedDB
    */
   async initialize(): Promise<void> {
+    // Verificar saúde do banco antes de tentar abrir
+    const isHealthy = await checkIndexedDBHealth();
+    if (!isHealthy) {
+      console.warn('⚠️ IndexedDB não está saudável - limpando e recriando...');
+      await clearIndexedDB();
+      // Aguardar um pouco para garantir que a limpeza foi concluída
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    
     return new Promise((resolve, reject) => {
       if (!window.indexedDB) {
         reject(new Error('IndexedDB não é suportado neste navegador'));
@@ -141,19 +151,25 @@ export class IndexedDBService {
    * Cria as stores do banco de dados
    */
   private createStores(db: IDBDatabase): void {
+    console.log('🏗️ Criando stores do IndexedDB...');
+    console.log('📋 Stores a serem criadas:', this.stores.map(s => s.name));
+    
     this.stores.forEach(storeConfig => {
       // Remover store existente se já existe (para atualizações)
       if (db.objectStoreNames.contains(storeConfig.name)) {
+        console.log(`🗑️ Removendo store existente: ${storeConfig.name}`);
         db.deleteObjectStore(storeConfig.name);
       }
 
       // Criar nova store
+      console.log(`✨ Criando store: ${storeConfig.name}`);
       const store = db.createObjectStore(storeConfig.name, {
         keyPath: storeConfig.keyPath,
       });
 
       // Criar índices
       storeConfig.indexes?.forEach(indexConfig => {
+        console.log(`📇 Criando índice ${indexConfig.name} para store ${storeConfig.name}`);
         store.createIndex(indexConfig.name, indexConfig.keyPath, {
           unique: indexConfig.unique || false,
         });
@@ -163,6 +179,9 @@ export class IndexedDBService {
         `✅ Store '${storeConfig.name}' criada com ${storeConfig.indexes?.length || 0} índices`
       );
     });
+    
+    console.log('✅ Todas as stores foram criadas com sucesso');
+    console.log('📊 Stores disponíveis:', Array.from(db.objectStoreNames));
   }
 
   /**
@@ -177,6 +196,19 @@ export class IndexedDBService {
     }
 
     const stores = Array.isArray(storeNames) ? storeNames : [storeNames];
+    
+    // Verificar se todas as stores existem
+    const availableStores = Array.from(this.db.objectStoreNames);
+    console.log('🔍 Stores disponíveis no banco:', availableStores);
+    console.log('🎯 Stores solicitadas:', stores);
+    
+    const missingStores = stores.filter(store => !availableStores.includes(store));
+    if (missingStores.length > 0) {
+      console.error('❌ Stores não encontradas:', missingStores);
+      console.error('💡 Possível solução: Limpar dados do navegador ou incrementar versão do DB');
+      throw new Error(`Stores não encontradas no banco de dados: ${missingStores.join(', ')}. Stores disponíveis: ${availableStores.join(', ')}`);
+    }
+    
     return this.db.transaction(stores, mode);
   }
 
