@@ -7,6 +7,7 @@ import { MobileItemEdit } from '@/components/mobile/MobileItemEdit';
 import { ItemEditModal } from './ItemEditModal';
 import { EvidenceModal } from './EvidenceModal';
 import { MobileVistoriaCompletion } from '../mobile/MobileVistoriaCompletion';
+import { MobileDespesasManager } from '@/components/mobile/MobileDespesasManager';
 import { LocalVistoriaService } from '@/services/vistoria/LocalVistoriaService';
 import { VistoriaProgressService } from '@/services/vistoria/VistoriaProgressService';
 import { ApiVistoriaService } from '@/services/vistoria/ApiVistoriaService';
@@ -26,7 +27,7 @@ export function VistoriaDetailsContent({ vistoriaId }: VistoriaDetailsContentPro
   const { toast } = useToast();
   
   // Estados de navegação mobile
-  const [currentView, setCurrentView] = useState<'overview' | 'items' | 'edit'>('overview');
+  const [currentView, setCurrentView] = useState<'overview' | 'items' | 'despesas' | 'edit'>('overview');
   const [editingItemIndex, setEditingItemIndex] = useState<number>(-1);
   
   // Estados dos modais
@@ -56,6 +57,10 @@ export function VistoriaDetailsContent({ vistoriaId }: VistoriaDetailsContentPro
   };
 
   const handleBackToOverview = () => {
+    setCurrentView('overview');
+  };
+
+  const handleBackFromDespesas = () => {
     setCurrentView('overview');
   };
 
@@ -101,12 +106,8 @@ export function VistoriaDetailsContent({ vistoriaId }: VistoriaDetailsContentPro
   };
 
   const handleAddExpense = () => {
-    console.log('💰 [VistoriaDetailsContent] Abrindo modal de despesas');
-    toast({
-      title: "Funcionalidade em Desenvolvimento",
-      description: "A funcionalidade de adicionar despesas será implementada em breve.",
-      variant: "default",
-    });
+    console.log('💰 [VistoriaDetailsContent] Navegando para despesas');
+    setCurrentView('despesas');
   };
 
   /**
@@ -452,15 +453,15 @@ export function VistoriaDetailsContent({ vistoriaId }: VistoriaDetailsContentPro
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center p-4">
         <div className="text-center">
           <div className="text-red-500 mb-4">⚠️</div>
-          <h3 className="text-lg font-semibold text-red-800 dark:text-red-200 mb-2">
-            Erro ao carregar vistoria
-          </h3>
-          <p className="text-red-600 dark:text-red-400 mb-4">{error}</p>
+              <h3 className="text-lg font-semibold text-red-800 dark:text-red-200 mb-2">
+                Erro ao carregar vistoria
+              </h3>
+              <p className="text-red-600 dark:text-red-400 mb-4">{error}</p>
           <button 
             onClick={recarregarVistoria}
             className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
           >
-            Tentar Novamente
+                  Tentar Novamente
           </button>
         </div>
       </div>
@@ -472,17 +473,17 @@ export function VistoriaDetailsContent({ vistoriaId }: VistoriaDetailsContentPro
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center p-4">
         <div className="text-center">
           <div className="text-gray-400 mb-4">📋</div>
-          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-            Vistoria não encontrada
-          </h3>
-          <p className="text-gray-600 dark:text-gray-400 mb-4">
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                Vistoria não encontrada
+              </h3>
+              <p className="text-gray-600 dark:text-gray-400 mb-4">
             A vistoria com ID {vistoriaId} não foi encontrada.
           </p>
           <button 
             onClick={recarregarVistoria}
             className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
           >
-            Recarregar
+                Recarregar
           </button>
         </div>
       </div>
@@ -491,7 +492,7 @@ export function VistoriaDetailsContent({ vistoriaId }: VistoriaDetailsContentPro
 
   // Renderização mobile-first
   if (currentView === 'edit' && editingItem) {
-    return (
+  return (
       <MobileItemEdit
         item={editingItem}
         itemIndex={editingItemIndex}
@@ -529,26 +530,42 @@ export function VistoriaDetailsContent({ vistoriaId }: VistoriaDetailsContentPro
           onViewDetails={handleViewItemDetails}
           onBack={handleBackToOverview}
         />
-        
-        {/* Modais */}
+
+             {/* Modais */}
         {editingItem && (
-          <ItemEditModal
-            open={editModalOpen}
-            onClose={() => setEditModalOpen(false)}
-            item={editingItem}
-            onSave={handleSaveEdit}
-          />
+       <ItemEditModal
+         open={editModalOpen}
+         onClose={() => setEditModalOpen(false)}
+         item={editingItem}
+         onSave={handleSaveEdit}
+       />
         )}
         
         {editingItem && (
-          <EvidenceModal
-            open={evidenceModalOpen}
-            onClose={() => setEvidenceModalOpen(false)}
-            item={editingItem}
-            onSave={handleSaveEvidence}
-          />
+       <EvidenceModal
+         open={evidenceModalOpen}
+         onClose={() => setEvidenceModalOpen(false)}
+         item={editingItem}
+         onSave={handleSaveEvidence}
+       />
         )}
       </>
+    );
+  }
+
+  // View de Despesas
+  if (currentView === 'despesas') {
+    // Obter token do localStorage
+    const authState = typeof window !== 'undefined' ? 
+      JSON.parse(localStorage.getItem('vistoria_auth_state') || '{}') : {};
+    const token = authState?.token || '';
+
+    return (
+      <MobileDespesasManager
+        vistoriaId={vistoriaId}
+        token={token}
+        onBack={handleBackFromDespesas}
+      />
     );
   }
 
