@@ -9,13 +9,18 @@ import { buildApiUrl } from '@/config/api';
 import { DespesaFormData } from '@/components/despesas/MobileDespesaForm';
 
 export interface DespesaApiResponse {
-  success: boolean;
+  success?: boolean;
+  type?: boolean; // Formato do backend usa 'type' em vez de 'success'
   data?: {
-    id: string;
-    url: string;
-    message: string;
+    id?: string;
+    url?: string;
+    message?: string;
+    despesa?: any; // Backend retorna o objeto despesa completo
+    success?: boolean;
   };
   error?: string;
+  message?: string; // Backend usa 'message' para mensagens de erro
+  code?: string; // Backend usa 'code' para códigos de erro
 }
 
 export interface ServiceResult<T> {
@@ -124,86 +129,212 @@ export class DespesaService {
       // Atualizar status para 'uploading'
       await DespesaStorageService.updateSyncStatus(despesa.id, 'uploading');
 
-      // Preparar FormData para multipart upload
-      const formData = new FormData();
-      
-      // Dados da despesa
-      formData.append('tipo', despesa.tipo);
-      formData.append('valor', despesa.valor.toString());
-      formData.append('descricao', despesa.descricao);
-      formData.append('data', despesa.data);
-      formData.append('vistoria_id', despesa.vistoriaId);
-      formData.append('local_id', despesa.id); // ID local para referência
-      
-      // Geolocalização se disponível
-      if (despesa.localizacao) {
-        formData.append('latitude', despesa.localizacao.latitude.toString());
-        formData.append('longitude', despesa.localizacao.longitude.toString());
-        formData.append('localizacao_precisao', despesa.localizacao.precisao.toString());
-      }
-
-      // Comprovantes (arquivos)
-      despesa.comprovantes.forEach((comprovante, index) => {
-        formData.append(`comprovante_${index}`, comprovante.file, comprovante.nome);
-      });
-
-      // Metadados dos comprovantes
-      formData.append('comprovantes_metadata', JSON.stringify(
-        despesa.comprovantes.map(c => ({
-          nome: c.nome,
-          tipo: c.tipo,
-          tamanho: c.tamanho,
-          timestamp: c.timestamp
-        }))
-      ));
-
-      // Fazer requisição para API
-      const response = await fetch(buildApiUrl(`/vistoria/${despesa.vistoriaId}/despesa`), {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          // NÃO definir Content-Type - deixar o navegador definir para FormData
-        },
-        body: formData
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`HTTP ${response.status}: ${errorText}`);
-      }
-
-      const result: DespesaApiResponse = await response.json();
-
-      if (result.success) {
-        // Upload bem-sucedido
-        await DespesaStorageService.updateSyncStatus(
-          despesa.id,
-          'synced',
-          result.data?.url
-        );
-
-        console.log('✅ DespesaService: Upload concluído', {
+      // Tentar upload
+      try {
+        console.log('🔄 DespesaService: Iniciando upload da despesa', {
           id: despesa.id,
-          urlRemota: result.data?.url
+          tipo: despesa.tipo,
+          valor: despesa.valor,
+          descricao: despesa.descricao.substring(0, 20) + (despesa.descricao.length > 20 ? '...' : ''),
+          data: despesa.data,
+          vistoriaId: despesa.vistoriaId
         });
 
-        return result;
-      } else {
-        // API retornou erro
+        // Construir URL da API
+        const apiUrl = buildApiUrl(`/vistoria/${despesa.vistoriaId}/adicionar-despesa`);
+
+        // Verificar se o token está presente
+        if (!token) {
+          throw new Error('Token de autenticação não fornecido');
+        }
+
+        // Preparar FormData para multipart upload
+        const formData = new FormData();
+
+        // Dados da despesa
+        formData.append('tipo', despesa.tipo);
+        formData.append('valor', despesa.valor.toString());
+        formData.append('descricao', despesa.descricao);
+        formData.append('data_informada', despesa.data);
+        formData.append('observacoes', despesa.observacoes || '');
+        formData.append('fornecedor', 'Técnico ABPAC');
+        formData.append('vistoria_id', despesa.vistoriaId);
+        formData.append('token', token);
+
+        // Geolocalização se disponível
+        if (despesa.latitude && despesa.longitude) {
+          formData.append('latitude', despesa.latitude.toString());
+          formData.append('longitude', despesa.longitude.toString());
+          formData.append('localizacao_precisao', (despesa.precisao || 0).toString());
+        }
+
+        // Adicionar comprovantes se houver
+        despesa.comprovantes.forEach((comprovante, index) => {
+          if (comprovante.blob) {
+            formData.append(`comprovante_${index}`, comprovante.blob, comprovante.nome);
+          }
+        });
+
+        console.log('🚀 DespesaService: Enviando requisição para API', {
+          url: apiUrl,
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token.substring(0, 10)}...`,
+            'X-Vistoria-Token': token.substring(0, 10) + '...'
+          },
+          formData: {
+            tipo: despesa.tipo,
+            valor: despesa.valor,
+            descricao: despesa.descricao.substring(0, 20) + (despesa.descricao.length > 20 ? '...' : ''),
+            data_informada: despesa.data,
+            observacoes: despesa.observacoes ? 'presente' : 'ausente',
+            fornecedor: 'Técnico ABPAC',
+            vistoria_id: despesa.vistoriaId,
+            token: token.substring(0, 10) + '...',
+            comprovantes: despesa.comprovantes.length
+          }
+        });
+        
+        const response = await fetch(apiUrl, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'X-Vistoria-Token': token,
+            // NÃO definir Content-Type - deixar o navegador definir para FormData
+          },
+          body: formData
+        });
+
+        console.log('📥 DespesaService: Resposta recebida da API', {
+          status: response.status,
+          statusText: response.statusText,
+          ok: response.ok,
+          headers: {
+            'content-type': response.headers.get('content-type'),
+            'content-length': response.headers.get('content-length')
+          }
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('❌ DespesaService: Resposta de erro da API:', {
+            status: response.status,
+            statusText: response.statusText,
+            body: errorText
+          });
+          
+          // Tentar parsear o erro como JSON
+          try {
+            const errorJson = JSON.parse(errorText);
+            throw new Error(`HTTP ${response.status}: ${errorJson.message || errorJson.error || errorText}`);
+          } catch (parseError) {
+            // Se não conseguir parsear como JSON, usar o texto bruto
+            throw new Error(`HTTP ${response.status}: ${errorText || response.statusText}`);
+          }
+        }
+
+        const responseText = await response.text();
+        console.log('📄 DespesaService: Texto da resposta:', responseText);
+
+        let result: DespesaApiResponse;
+        try {
+          result = JSON.parse(responseText);
+          console.log('🔍 DespesaService: Resposta parseada:', result);
+        } catch (parseError) {
+          console.error('❌ DespesaService: Erro ao parsear resposta JSON:', parseError);
+          throw new Error(`Erro ao parsear resposta: ${responseText}`);
+        }
+
+        // Mapear resposta do backend para o formato esperado pelo frontend
+        const mappedResult: DespesaApiResponse = {
+          success: result.type === true || result.success === true,
+          data: result.data || {
+            message: result.data?.message || result.message,
+            despesa: result.data?.despesa
+          },
+          error: result.error || result.message
+        };
+
+        console.log('🔄 DespesaService: Resposta mapeada:', mappedResult);
+
+        if (mappedResult.success) {
+          // Upload bem-sucedido
+          await DespesaStorageService.updateSyncStatus(
+            despesa.id,
+            'synced',
+            mappedResult.data?.url || mappedResult.data?.despesa?.id
+          );
+
+          console.log('✅ DespesaService: Upload concluído', {
+            id: despesa.id,
+            urlRemota: mappedResult.data?.url || mappedResult.data?.despesa?.id
+          });
+
+          return mappedResult;
+        } else {
+          // API retornou erro
+          const errorMessage = mappedResult.error || 'Erro desconhecido da API';
+          console.error('❌ DespesaService: API retornou erro:', errorMessage);
+          
+          await DespesaStorageService.updateSyncStatus(
+            despesa.id,
+            'error',
+            undefined,
+            errorMessage
+          );
+
+          return mappedResult;
+        }
+
+      } catch (error) {
+        console.error('❌ DespesaService: Erro no upload:', error);
+
+        let errorMessage = error instanceof Error ? error.message : 'Erro de conexão';
+        
+        // Tentar extrair mensagens de validação mais específicas
+        if (error instanceof Error && error.message.includes('422')) {
+          try {
+            const errorData = JSON.parse(error.message.split('HTTP 422: ')[1]);
+            if (errorData.errors && errorData.errors.length > 0) {
+              // Usar a primeira mensagem de validação como mensagem de erro
+              errorMessage = errorData.errors[0].message;
+            }
+          } catch (e) {
+            // Se não conseguir parsear, manter a mensagem original
+            console.warn('Não foi possível extrair detalhes do erro de validação', e);
+          }
+        }
+        
         await DespesaStorageService.updateSyncStatus(
           despesa.id,
           'error',
           undefined,
-          result.error || 'Erro desconhecido da API'
+          errorMessage
         );
 
-        return result;
+        return {
+          success: false,
+          error: errorMessage
+        };
       }
-
     } catch (error) {
       console.error('❌ DespesaService: Erro no upload:', error);
 
-      const errorMessage = error instanceof Error ? error.message : 'Erro de conexão';
+      let errorMessage = error instanceof Error ? error.message : 'Erro de conexão';
+      
+      // Tentar extrair mensagens de validação mais específicas
+      if (error instanceof Error && error.message.includes('422')) {
+        try {
+          const errorData = JSON.parse(error.message.split('HTTP 422: ')[1]);
+          if (errorData.errors && errorData.errors.length > 0) {
+            // Usar a primeira mensagem de validação como mensagem de erro
+            errorMessage = errorData.errors[0].message;
+          }
+        } catch (e) {
+          // Se não conseguir parsear, manter a mensagem original
+          console.warn('Não foi possível extrair detalhes do erro de validação', e);
+        }
+      }
       
       await DespesaStorageService.updateSyncStatus(
         despesa.id,
@@ -227,14 +358,7 @@ export class DespesaService {
     token: string
   ): Promise<void> {
     try {
-      await SyncQueueService.adicionarOperacao({
-        tipo: 'UPLOAD_DESPESA',
-        dados: { despesaId, token },
-        prioridade: 'media',
-        tentativas: 0,
-        proximaTentativa: new Date().toISOString()
-      });
-
+      await SyncQueueService.adicionarUploadDespesa(despesaId, token, 'media');
       console.log('📝 DespesaService: Despesa adicionada à fila de sincronização', { despesaId });
     } catch (error) {
       console.error('❌ DespesaService: Erro ao adicionar na fila:', error);
