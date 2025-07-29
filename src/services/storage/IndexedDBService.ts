@@ -8,7 +8,7 @@ export class IndexedDBService {
   private static instance: IndexedDBService;
   private db: IDBDatabase | null = null;
   private readonly dbName = 'VistoriaABPAC';
-  private readonly dbVersion = 2; // Incrementada para incluir VISTORIAS_LOCAIS
+  private readonly dbVersion = 3; // Incrementada para incluir DESPESAS e correções
 
   // Definição das stores do banco de dados
   private readonly stores: DatabaseStore[] = [

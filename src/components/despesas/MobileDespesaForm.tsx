@@ -43,49 +43,35 @@ interface MobileDespesaFormProps {
   initialData?: Partial<DespesaFormData>;
 }
 
-// Tipos de despesas pré-definidos para técnicos
+// Tipos de despesas conforme estrutura do banco de dados
 const TIPOS_DESPESA = [
   { 
-    id: 'combustivel', 
-    label: 'Combustível', 
-    icon: Fuel, 
-    color: 'bg-blue-500', 
-    description: 'Gasolina, diesel, álcool'
-  },
-  { 
-    id: 'alimentacao', 
-    label: 'Alimentação', 
-    icon: Utensils, 
-    color: 'bg-orange-500', 
-    description: 'Refeições, lanches'
-  },
-  { 
-    id: 'pedagio', 
-    label: 'Pedágio', 
-    icon: Car, 
-    color: 'bg-green-500', 
-    description: 'Taxas de rodovia'
-  },
-  { 
-    id: 'estacionamento', 
-    label: 'Estacionamento', 
-    icon: MapPin, 
-    color: 'bg-purple-500', 
-    description: 'Zona azul, estacionamentos'
-  },
-  { 
-    id: 'material', 
-    label: 'Material', 
+    id: 'SERVICO', 
+    label: 'Serviço', 
     icon: Receipt, 
-    color: 'bg-red-500', 
-    description: 'Peças, ferramentas'
+    color: 'bg-blue-500', 
+    description: 'Serviços técnicos, mão de obra'
   },
   { 
-    id: 'outros', 
-    label: 'Outros', 
+    id: 'MATERIAL', 
+    label: 'Material', 
     icon: FileText, 
+    color: 'bg-green-500', 
+    description: 'Peças, componentes, ferramentas'
+  },
+  { 
+    id: 'DESLOCAMENTO', 
+    label: 'Deslocamento', 
+    icon: Car, 
+    color: 'bg-orange-500', 
+    description: 'Combustível, pedágio, estacionamento'
+  },
+  { 
+    id: 'OUTROS', 
+    label: 'Outros', 
+    icon: DollarSign, 
     color: 'bg-gray-500', 
-    description: 'Outras despesas'
+    description: 'Outras despesas não categorizadas'
   }
 ];
 

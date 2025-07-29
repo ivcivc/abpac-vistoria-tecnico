@@ -43,46 +43,32 @@ interface MobileDespesasListProps {
   className?: string;
 }
 
-// Configuração de tipos de despesa
+// Configuração de tipos de despesa conforme banco de dados
 const TIPOS_CONFIG = {
-  combustivel: { 
-    label: 'Combustível', 
-    icon: Fuel, 
+  SERVICO: { 
+    label: 'Serviço', 
+    icon: Receipt, 
     color: 'bg-blue-500',
     textColor: 'text-blue-700',
     bgColor: 'bg-blue-50'
   },
-  alimentacao: { 
-    label: 'Alimentação', 
-    icon: Utensils, 
-    color: 'bg-orange-500',
-    textColor: 'text-orange-700',
-    bgColor: 'bg-orange-50'
-  },
-  pedagio: { 
-    label: 'Pedágio', 
-    icon: Car, 
+  MATERIAL: { 
+    label: 'Material', 
+    icon: FileText, 
     color: 'bg-green-500',
     textColor: 'text-green-700',
     bgColor: 'bg-green-50'
   },
-  estacionamento: { 
-    label: 'Estacionamento', 
-    icon: MapPin, 
-    color: 'bg-purple-500',
-    textColor: 'text-purple-700',
-    bgColor: 'bg-purple-50'
+  DESLOCAMENTO: { 
+    label: 'Deslocamento', 
+    icon: Car, 
+    color: 'bg-orange-500',
+    textColor: 'text-orange-700',
+    bgColor: 'bg-orange-50'
   },
-  material: { 
-    label: 'Material', 
-    icon: Receipt, 
-    color: 'bg-red-500',
-    textColor: 'text-red-700',
-    bgColor: 'bg-red-50'
-  },
-  outros: { 
+  OUTROS: { 
     label: 'Outros', 
-    icon: FileText, 
+    icon: DollarSign, 
     color: 'bg-gray-500',
     textColor: 'text-gray-700',
     bgColor: 'bg-gray-50'
