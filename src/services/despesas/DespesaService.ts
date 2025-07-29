@@ -1,329 +1,442 @@
 /**
- * Serviço para integração com endpoints de despesas do backend
- * Task 17 - Integração com endpoints reais de despesas
+ * Serviço de Despesas - Task 5.4
+ * Integra armazenamento local com API backend usando padrão offline-first
  */
 
-import { Despesa, Evidencia } from '@/types/storage';
-import { API_CONFIG, buildApiUrl } from '@/config/api';
-import { UploadService } from '../uploadService';
+import { DespesaStorageService, DespesaLocal } from './DespesaStorageService';
+import { SyncQueueService } from '@/services/sync/SyncQueueService';
+import { buildApiUrl } from '@/config/api';
+import { DespesaFormData } from '@/components/despesas/MobileDespesaForm';
 
-export interface DespesaBackend {
-  id?: number;
-  estoque_remessa_id: number;
-  estoque_remessa_item_id?: number;
-  descricao: string;
-  valor: number;
-  tipo: 'SERVICO' | 'MATERIAL' | 'DESLOCAMENTO' | 'OUTROS';
-  observacoes?: string;
-  aprovada?: boolean;
-  data_aprovacao?: string;
-  usuario_aprovacao_id?: number;
-  arquivo_id?: number;
-  created_at?: string;
-  updated_at?: string;
-  arquivo?: {
-    id: number;
-    nome: string;
-    caminho?: string;
-    url?: string;
-    tipo?: string;
-    subtipo?: string;
-    tamanho?: number;
-    mime_type?: string;
-    referencia?: string;
-    descricao?: string;
-    created_at?: string;
-    updated_at?: string;
+export interface DespesaApiResponse {
+  success: boolean;
+  data?: {
+    id: string;
+    url: string;
+    message: string;
   };
+  error?: string;
 }
 
-export interface DespesaResponse {
+export interface ServiceResult<T> {
   success: boolean;
-  despesa?: DespesaBackend;
+  data?: T;
   error?: string;
+  needsSync?: boolean;
 }
 
 export class DespesaService {
   /**
-   * Adiciona uma despesa ao backend
+   * Cria uma nova despesa - padrão offline-first
    */
-  static async adicionarDespesa(
-    vistoriaId: string | number,
-    despesa: Omit<Despesa, 'id' | 'vistoriaId'>,
-    token: string
-  ): Promise<DespesaResponse> {
+  static async criarDespesa(
+    despesaData: DespesaFormData,
+    token: string,
+    options: {
+      uploadImmediate?: boolean;
+      onProgress?: (progress: { stage: string; message: string }) => void;
+    } = {}
+  ): Promise<ServiceResult<DespesaLocal>> {
+    const { uploadImmediate = true, onProgress } = options;
+
     try {
-      console.log('🔄 DespesaService: Adicionando despesa ao backend', {
-        vistoriaId,
-        despesa
+      onProgress?.({ stage: 'saving', message: 'Salvando despesa localmente...' });
+
+      // 1. SALVAR LOCALMENTE (SEMPRE)
+      const despesaLocal = await DespesaStorageService.criarDespesa({
+        vistoriaId: despesaData.vistoriaId,
+        tipo: despesaData.tipo,
+        valor: despesaData.valor,
+        descricao: despesaData.descricao,
+        data: despesaData.data,
+        comprovantes: despesaData.comprovantes,
+        tecnicoId: undefined // TODO: pegar do contexto de auth
       });
 
-      // Verificar token
-      if (!token || token.trim() === '') {
-        console.warn('⚠️ DespesaService: Token não fornecido');
-        return {
-          success: false,
-          error: 'Token de autenticação não fornecido'
-        };
-      }
-
-      // Preparar dados para o backend
-      const despesaBackend: Record<string, any> = {
-        descricao: despesa.descricao,
-        valor: despesa.valor,
-        tipo: despesa.tipo,
-        observacoes: despesa.descricao, // Duplicar descrição nas observações
-        estoque_remessa_item_id: despesa.itemId
-      };
-
-      // Verificar se há comprovante para upload
-      let arquivoId = null;
-      if (despesa.comprovante) {
-        // Fazer upload do comprovante
-        console.log('📤 DespesaService: Fazendo upload do comprovante');
-        
-        // Obter o arquivo como Blob
-        const response = await fetch(despesa.comprovante.localUrl);
-        if (!response.ok) {
-          throw new Error(`Falha ao obter arquivo: ${response.status}`);
-        }
-        
-        const blob = await response.blob();
-        
-        // Fazer upload
-        const uploadResult = await UploadService.uploadFile(blob, {
-          tipo: 'comprovante_despesa',
-          referencia: `despesa_${vistoriaId}_${Date.now()}`,
-          fileName: `comprovante_${Date.now()}.jpg`
-        });
-        
-        if (uploadResult.success && uploadResult.arquivo) {
-          arquivoId = uploadResult.arquivo.id;
-          console.log('✅ DespesaService: Comprovante enviado com sucesso', arquivoId);
-        } else {
-          console.error('❌ DespesaService: Falha no upload do comprovante', uploadResult.error);
-        }
-      }
-
-      // Se tiver arquivo, adicionar ao payload
-      if (arquivoId) {
-        despesaBackend['arquivo_id'] = arquivoId;
-      }
-
-      // Construir URL
-      const url = buildApiUrl(API_CONFIG.ENDPOINTS.ADD_DESPESA, { id: vistoriaId }) + '/adicionar-despesa';
-
-      // Fazer requisição
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(despesaBackend)
+      console.log('✅ DespesaService: Despesa salva localmente', {
+        id: despesaLocal.id,
+        valor: despesaLocal.valor,
+        tipo: despesaLocal.tipo
       });
 
-      const data = await response.json();
+      // 2. TENTAR UPLOAD IMEDIATO (SE ONLINE)
+      if (uploadImmediate && navigator.onLine) {
+        onProgress?.({ stage: 'uploading', message: 'Sincronizando com servidor...' });
 
-      if (!response.ok) {
-        if (response.status === 401) {
-          throw new Error('Token de autenticação inválido ou expirado');
+        try {
+          const uploadResult = await this.uploadDespesa(despesaLocal, token);
+          
+          if (uploadResult.success) {
+            onProgress?.({ stage: 'success', message: 'Despesa sincronizada com sucesso!' });
+            
+            return {
+              success: true,
+              data: despesaLocal,
+              needsSync: false
+            };
+          } else {
+            // Upload falhou - adicionar à fila
+            await this.adicionarNaFilaDeSincronizacao(despesaLocal.id, token);
+            
+            onProgress?.({ stage: 'queued', message: 'Despesa será sincronizada automaticamente' });
+          }
+        } catch (error) {
+          console.warn('⚠️ DespesaService: Upload imediato falhou, adicionando à fila');
+          await this.adicionarNaFilaDeSincronizacao(despesaLocal.id, token);
         }
-        throw new Error(data.message || `Erro ${response.status}: ${response.statusText}`);
+      } else {
+        // Offline ou sem upload imediato - adicionar à fila
+        await this.adicionarNaFilaDeSincronizacao(despesaLocal.id, token);
+        
+        onProgress?.({ stage: 'offline', message: 'Despesa será sincronizada quando online' });
       }
-
-      if (data.type !== true) {
-        throw new Error(data.message || 'Resposta inválida do servidor');
-      }
-
-      console.log('✅ DespesaService: Despesa adicionada com sucesso', data);
 
       return {
         success: true,
-        despesa: data.data
+        data: despesaLocal,
+        needsSync: true
       };
+
     } catch (error) {
-      console.error('❌ DespesaService: Erro ao adicionar despesa', error);
+      console.error('❌ DespesaService: Erro ao criar despesa:', error);
+      
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Erro desconhecido ao adicionar despesa'
+        error: error instanceof Error ? error.message : 'Erro ao salvar despesa'
       };
     }
   }
 
   /**
-   * Obtém despesas de uma vistoria do backend
+   * Upload direto de despesa para o backend
    */
-  static async obterDespesas(
-    vistoriaId: string | number,
-    token?: string
-  ): Promise<{ success: boolean; despesas?: DespesaBackend[]; remessa?: any; error?: string }> {
+  static async uploadDespesa(
+    despesa: DespesaLocal,
+    token: string
+  ): Promise<DespesaApiResponse> {
     try {
-      console.log('🔄 DespesaService: Obtendo despesas da vistoria', vistoriaId);
+      console.log('🔄 DespesaService: UPLOAD para API', {
+        id: despesa.id,
+        tipo: despesa.tipo,
+        valor: despesa.valor
+      });
 
-      // Validar token
-      if (!token || token.trim() === '') {
-        console.warn('⚠️ DespesaService: Tentativa de obter despesas sem token');
+      // Atualizar status para 'uploading'
+      await DespesaStorageService.updateSyncStatus(despesa.id, 'uploading');
+
+      // Preparar FormData para multipart upload
+      const formData = new FormData();
+      
+      // Dados da despesa
+      formData.append('tipo', despesa.tipo);
+      formData.append('valor', despesa.valor.toString());
+      formData.append('descricao', despesa.descricao);
+      formData.append('data', despesa.data);
+      formData.append('vistoria_id', despesa.vistoriaId);
+      formData.append('local_id', despesa.id); // ID local para referência
+      
+      // Geolocalização se disponível
+      if (despesa.localizacao) {
+        formData.append('latitude', despesa.localizacao.latitude.toString());
+        formData.append('longitude', despesa.localizacao.longitude.toString());
+        formData.append('localizacao_precisao', despesa.localizacao.precisao.toString());
+      }
+
+      // Comprovantes (arquivos)
+      despesa.comprovantes.forEach((comprovante, index) => {
+        formData.append(`comprovante_${index}`, comprovante.file, comprovante.nome);
+      });
+
+      // Metadados dos comprovantes
+      formData.append('comprovantes_metadata', JSON.stringify(
+        despesa.comprovantes.map(c => ({
+          nome: c.nome,
+          tipo: c.tipo,
+          tamanho: c.tamanho,
+          timestamp: c.timestamp
+        }))
+      ));
+
+      // Fazer requisição para API
+      const response = await fetch(buildApiUrl(`/vistoria/${despesa.vistoriaId}/despesa`), {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          // NÃO definir Content-Type - deixar o navegador definir para FormData
+        },
+        body: formData
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+      }
+
+      const result: DespesaApiResponse = await response.json();
+
+      if (result.success) {
+        // Upload bem-sucedido
+        await DespesaStorageService.updateSyncStatus(
+          despesa.id,
+          'synced',
+          result.data?.url
+        );
+
+        console.log('✅ DespesaService: Upload concluído', {
+          id: despesa.id,
+          urlRemota: result.data?.url
+        });
+
+        return result;
+      } else {
+        // API retornou erro
+        await DespesaStorageService.updateSyncStatus(
+          despesa.id,
+          'error',
+          undefined,
+          result.error || 'Erro desconhecido da API'
+        );
+
+        return result;
+      }
+
+    } catch (error) {
+      console.error('❌ DespesaService: Erro no upload:', error);
+
+      const errorMessage = error instanceof Error ? error.message : 'Erro de conexão';
+      
+      await DespesaStorageService.updateSyncStatus(
+        despesa.id,
+        'error',
+        undefined,
+        errorMessage
+      );
+
+      return {
+        success: false,
+        error: errorMessage
+      };
+    }
+  }
+
+  /**
+   * Adiciona despesa na fila de sincronização
+   */
+  private static async adicionarNaFilaDeSincronizacao(
+    despesaId: string,
+    token: string
+  ): Promise<void> {
+    try {
+      await SyncQueueService.adicionarOperacao({
+        tipo: 'UPLOAD_DESPESA',
+        dados: { despesaId, token },
+        prioridade: 'media',
+        tentativas: 0,
+        proximaTentativa: new Date().toISOString()
+      });
+
+      console.log('📝 DespesaService: Despesa adicionada à fila de sincronização', { despesaId });
+    } catch (error) {
+      console.error('❌ DespesaService: Erro ao adicionar na fila:', error);
+    }
+  }
+
+  /**
+   * Obtém despesas de uma vistoria
+   */
+  static async getDespesasByVistoria(vistoriaId: string): Promise<ServiceResult<DespesaLocal[]>> {
+    try {
+      const despesas = await DespesaStorageService.getDespesasByVistoria(vistoriaId);
+      
+      return {
+        success: true,
+        data: despesas
+      };
+    } catch (error) {
+      console.error('❌ DespesaService: Erro ao buscar despesas:', error);
+      
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Erro ao buscar despesas'
+      };
+    }
+  }
+
+  /**
+   * Atualiza uma despesa existente
+   */
+  static async atualizarDespesa(
+    id: string,
+    updates: Partial<Pick<DespesaLocal, 'tipo' | 'valor' | 'descricao' | 'data' | 'comprovantes'>>,
+    token: string,
+    options: {
+      uploadImmediate?: boolean;
+      onProgress?: (progress: { stage: string; message: string }) => void;
+    } = {}
+  ): Promise<ServiceResult<DespesaLocal>> {
+    const { uploadImmediate = true, onProgress } = options;
+
+    try {
+      onProgress?.({ stage: 'updating', message: 'Atualizando despesa...' });
+
+      // Atualizar localmente
+      const despesaAtualizada = await DespesaStorageService.atualizarDespesa(id, updates);
+      
+      if (!despesaAtualizada) {
         return {
           success: false,
-          error: 'Token de autenticação não fornecido'
+          error: 'Despesa não encontrada'
         };
       }
 
-      // Construir URL correta usando o endpoint definido na configuração
-      // Importante: Verificar se a URL está correta para o endpoint
-      const url = buildApiUrl(API_CONFIG.ENDPOINTS.GET_DESPESAS, { id: vistoriaId }) + '/despesas';
-      console.log('🔄 DespesaService: URL da requisição:', url);
+      // Tentar sincronizar se online
+      if (uploadImmediate && navigator.onLine) {
+        onProgress?.({ stage: 'uploading', message: 'Sincronizando alterações...' });
 
-      // Configurar headers
-      // Importante: Verificar se o formato do token está correto
-      // Alguns backends esperam "Bearer TOKEN", outros apenas "TOKEN"
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
+        try {
+          const uploadResult = await this.uploadDespesa(despesaAtualizada, token);
+          
+          if (uploadResult.success) {
+            onProgress?.({ stage: 'success', message: 'Alterações sincronizadas!' });
+          } else {
+            await this.adicionarNaFilaDeSincronizacao(id, token);
+            onProgress?.({ stage: 'queued', message: 'Alterações serão sincronizadas automaticamente' });
+          }
+        } catch (error) {
+          await this.adicionarNaFilaDeSincronizacao(id, token);
+        }
+      } else {
+        await this.adicionarNaFilaDeSincronizacao(id, token);
+        onProgress?.({ stage: 'offline', message: 'Alterações serão sincronizadas quando online' });
+      }
+
+      return {
+        success: true,
+        data: despesaAtualizada,
+        needsSync: despesaAtualizada.status !== 'synced'
       };
 
-      console.log('🔄 DespesaService: Headers da requisição:', JSON.stringify(headers, null, 2));
-
-      // Fazer requisição com tratamento de erros melhorado
-      try {
-        // Tentar primeiro com o formato "Bearer TOKEN"
-        let response = await fetch(url, {
-          method: 'GET',
-          headers
-        });
-
-        // Se receber 401, tentar sem o prefixo "Bearer"
-        if (response.status === 401) {
-          console.log('🔄 DespesaService: Tentando autenticação sem prefixo Bearer');
-          
-          const headersSimples = {
-            'Content-Type': 'application/json',
-            'Authorization': token
-          };
-          
-          response = await fetch(url, {
-            method: 'GET',
-            headers: headersSimples
-          });
-        }
-
-        // Verificar erros de autenticação primeiro
-        if (response.status === 401) {
-          console.error('❌ DespesaService: Erro de autenticação (401) ao obter despesas');
-          return {
-            success: false,
-            error: 'Token de autenticação inválido ou expirado'
-          };
-        }
-
-        // Verificar outros erros HTTP
-        if (!response.ok) {
-          const errorText = await response.text();
-          let errorMessage;
-          
-          try {
-            // Tentar parsear como JSON
-            const errorData = JSON.parse(errorText);
-            errorMessage = errorData.message || `Erro ${response.status}: ${response.statusText}`;
-          } catch (e) {
-            // Se não for JSON, usar o texto bruto
-            errorMessage = errorText || `Erro ${response.status}: ${response.statusText}`;
-          }
-          
-          throw new Error(errorMessage);
-        }
-
-        const data = await response.json();
-        console.log('✅ DespesaService: Resposta do servidor:', data);
-
-        if (data.type !== true) {
-          throw new Error(data.message || 'Resposta inválida do servidor');
-        }
-
-        // Verificar se a resposta contém o novo formato com remessa e despesas
-        const despesas = data.data.despesas || data.data || [];
-        const remessa = data.data.remessa || null;
-
-        console.log('✅ DespesaService: Despesas obtidas com sucesso', {
-          despesas: despesas.length,
-          remessa: remessa ? 'Presente' : 'Ausente'
-        });
-
-        return {
-          success: true,
-          despesas,
-          remessa
-        };
-      } catch (fetchError) {
-        // Capturar erros específicos do fetch
-        if (fetchError instanceof TypeError && fetchError.message === 'Failed to fetch') {
-          console.error('❌ DespesaService: Erro de conexão com o servidor');
-          return {
-            success: false,
-            error: 'Não foi possível conectar ao servidor. Verifique sua conexão ou se o servidor está em execução.'
-          };
-        }
-        throw fetchError;
-      }
     } catch (error) {
-      console.error('❌ DespesaService: Erro ao obter despesas', error);
+      console.error('❌ DespesaService: Erro ao atualizar despesa:', error);
+      
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Erro desconhecido ao obter despesas'
+        error: error instanceof Error ? error.message : 'Erro ao atualizar despesa'
       };
     }
   }
 
   /**
-   * Converte despesa do backend para o formato do frontend
+   * Remove uma despesa
    */
-  static convertFromBackend(despesaBackend: DespesaBackend): Despesa {
-    return {
-      id: `despesa_${despesaBackend.id}`,
-      itemId: despesaBackend.estoque_remessa_item_id?.toString() || '',
-      vistoriaId: despesaBackend.estoque_remessa_id.toString(),
-      tipo: despesaBackend.tipo,
-      valor: despesaBackend.valor,
-      descricao: despesaBackend.descricao,
-      timestamp: despesaBackend.created_at ? new Date(despesaBackend.created_at) : new Date(),
-      aprovada: despesaBackend.aprovada || false,
-      // Se tiver arquivo_id ou arquivos, criar um objeto de evidência básico
-      comprovante: despesaBackend.arquivo_id ? {
-        id: `arquivo_${despesaBackend.arquivo_id}`,
-        itemId: despesaBackend.estoque_remessa_item_id?.toString() || '',
-        tipo: 'foto', // Usar 'foto' em vez de 'image/jpeg' para compatibilidade com o tipo Evidencia
-        url: `/api/arquivos/${despesaBackend.arquivo_id}`,
-        localUrl: `/api/arquivos/${despesaBackend.arquivo_id}`,
-        tamanho: 0,
-        timestamp: new Date(),
-        tipoEvidencia: 'outro',
-        descricao: 'Comprovante de despesa'
-      } : (despesaBackend.arquivo ? {
-        id: `arquivo_${despesaBackend.arquivo.id}`,
-        itemId: despesaBackend.estoque_remessa_item_id?.toString() || '',
-        tipo: 'foto',
-        url: despesaBackend.arquivo.url || `/api/arquivos/${despesaBackend.arquivo.id}`,
-        localUrl: despesaBackend.arquivo.url || `/api/arquivos/${despesaBackend.arquivo.id}`,
-        tamanho: despesaBackend.arquivo.tamanho || 0,
-        timestamp: new Date(),
-        tipoEvidencia: 'outro',
-        descricao: despesaBackend.arquivo.nome || 'Comprovante de despesa'
-      } : undefined)
-    };
+  static async removerDespesa(
+    id: string,
+    token: string
+  ): Promise<ServiceResult<boolean>> {
+    try {
+      const despesa = await DespesaStorageService.getDespesaById(id);
+      
+      if (!despesa) {
+        return {
+          success: false,
+          error: 'Despesa não encontrada'
+        };
+      }
+
+      // Se foi sincronizada, precisamos avisar o backend
+      if (despesa.status === 'synced' && despesa.urlRemota) {
+        // TODO: Implementar endpoint DELETE no backend
+        console.log('⚠️ DespesaService: Despesa sincronizada - seria necessário DELETE na API');
+      }
+
+      // Remover localmente
+      const removida = await DespesaStorageService.removerDespesa(id);
+
+      return {
+        success: removida,
+        data: removida
+      };
+
+    } catch (error) {
+      console.error('❌ DespesaService: Erro ao remover despesa:', error);
+      
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Erro ao remover despesa'
+      };
+    }
   }
 
   /**
-   * Converte despesa do frontend para o formato do backend
+   * Obtém estatísticas de despesas
    */
-  static convertToBackend(despesa: Despesa): Partial<DespesaBackend> {
-    return {
-      estoque_remessa_id: parseInt(despesa.vistoriaId),
-      estoque_remessa_item_id: despesa.itemId ? parseInt(despesa.itemId) : undefined,
-      descricao: despesa.descricao,
-      valor: despesa.valor,
-      tipo: despesa.tipo,
-      observacoes: despesa.descricao // Duplicar descrição nas observações
-    };
+  static async getStats(vistoriaId?: string): Promise<ServiceResult<any>> {
+    try {
+      const stats = await DespesaStorageService.getStats(vistoriaId);
+      
+      return {
+        success: true,
+        data: stats
+      };
+    } catch (error) {
+      console.error('❌ DespesaService: Erro ao obter estatísticas:', error);
+      
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Erro ao obter estatísticas'
+      };
+    }
+  }
+
+  /**
+   * Retry manual de sincronização para despesa específica
+   */
+  static async retrySyncDespesa(
+    id: string,
+    token: string
+  ): Promise<ServiceResult<DespesaLocal>> {
+    try {
+      const despesa = await DespesaStorageService.getDespesaById(id);
+      
+      if (!despesa) {
+        return {
+          success: false,
+          error: 'Despesa não encontrada'
+        };
+      }
+
+      if (despesa.status === 'synced') {
+        return {
+          success: true,
+          data: despesa,
+          needsSync: false
+        };
+      }
+
+      const uploadResult = await this.uploadDespesa(despesa, token);
+      
+      if (uploadResult.success) {
+        const despesaAtualizada = await DespesaStorageService.getDespesaById(id);
+        
+        return {
+          success: true,
+          data: despesaAtualizada!,
+          needsSync: false
+        };
+      } else {
+        return {
+          success: false,
+          error: uploadResult.error || 'Falha na sincronização'
+        };
+      }
+
+    } catch (error) {
+      console.error('❌ DespesaService: Erro no retry:', error);
+      
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Erro no retry de sincronização'
+      };
+    }
   }
 } 

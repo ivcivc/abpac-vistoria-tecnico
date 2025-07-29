@@ -10,10 +10,11 @@ import { STORES } from '@/types/storage';
 import { ApiVistoriaService } from '@/services/vistoria/ApiVistoriaService';
 import { UploadService } from '@/services/uploadService';
 import { EvidenceStorageService } from '@/services/media/EvidenceStorageService';
+import { DespesaStorageService } from '@/services/despesas/DespesaStorageService';
 
 export interface SyncQueueItem {
   id: string;
-  tipo: 'UPDATE_ITEM' | 'UPLOAD_EVIDENCE' | 'COMPLETE_VISTORIA';
+  tipo: 'UPDATE_ITEM' | 'UPLOAD_EVIDENCE' | 'UPLOAD_DESPESA' | 'COMPLETE_VISTORIA';
   entidade: string; // ID da entidade (item, vistoria, etc.)
   dados: any; // Dados a serem sincronizados
   prioridade: number; // 1 = alta, 2 = média, 3 = baixa
@@ -240,6 +241,10 @@ export class SyncQueueService {
           resultado = await this.processarUploadEvidencia(item);
           break;
         
+        case 'UPLOAD_DESPESA':
+          resultado = await this.processarUploadDespesa(item);
+          break;
+        
         case 'COMPLETE_VISTORIA':
           // Implementar conclusão de vistoria via API
           const completionService = new (await import('../vistoria/VistoriaCompletionService')).VistoriaCompletionService();
@@ -458,6 +463,75 @@ export class SyncQueueService {
         error: 'Erro interno ao obter estatísticas'
       };
     }
+  }
+
+  /**
+   * Processa upload de despesa da fila
+   */
+  private async processarUploadDespesa(item: SyncQueueItem): Promise<ServiceResult> {
+    try {
+      console.log('🔄 SyncQueue: Processando upload de despesa', {
+        id: item.entidade,
+        tentativa: item.tentativas + 1
+      });
+
+      // Obter despesa do storage local
+      const despesa = await DespesaStorageService.getDespesaById(item.dados.despesaId);
+      
+      if (!despesa) {
+        console.error('❌ SyncQueue: Despesa não encontrada no storage local');
+        return {
+          success: false,
+          error: 'Despesa não encontrada no storage local'
+        };
+      }
+
+      // Importar DespesaService dinamicamente para evitar imports circulares
+      const { DespesaService } = await import('../despesas/DespesaService');
+      
+      // Tentar upload
+      const resultado = await DespesaService.uploadDespesa(despesa, item.dados.token);
+
+      if (resultado.success) {
+        console.log('✅ SyncQueue: Upload de despesa concluído com sucesso');
+        return {
+          success: true,
+          data: resultado.data
+        };
+      } else {
+        console.error('❌ SyncQueue: Falha no upload da despesa:', resultado.error);
+        return {
+          success: false,
+          error: resultado.error || 'Falha no upload da despesa'
+        };
+      }
+
+    } catch (error) {
+      console.error('❌ SyncQueue: Erro no processamento de upload de despesa:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Erro desconhecido no upload'
+      };
+    }
+  }
+
+  /**
+   * Adiciona upload de despesa à fila
+   */
+  static async adicionarUploadDespesa(
+    despesaId: string,
+    token: string,
+    prioridade: 'alta' | 'media' | 'baixa' = 'media'
+  ): Promise<void> {
+    const instance = SyncQueueService.getInstance();
+    
+    await instance.adicionarOperacao({
+      tipo: 'UPLOAD_DESPESA',
+      dados: { despesaId, token },
+      prioridade,
+      tentativas: 0,
+      proximaTentativa: new Date().toISOString()
+    });
   }
 
   /**
