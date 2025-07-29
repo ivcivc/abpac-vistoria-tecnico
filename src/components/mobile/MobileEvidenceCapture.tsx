@@ -14,7 +14,8 @@ import {
   AlertTriangle,
   RotateCcw,
   ZoomIn,
-  Download
+  Download,
+  PlayCircle
 } from 'lucide-react';
 
 export interface MediaFile {
@@ -57,6 +58,7 @@ export function MobileEvidenceCapture({
   const [fotos, setFotos] = useState<MediaFile[]>(fotosExistentes);
   const [isProcessing, setIsProcessing] = useState(false);
   const [previewPhoto, setPreviewPhoto] = useState<MediaFile | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ show: boolean; item: MediaFile | null }>({ show: false, item: null });
 
   // Sincronizar com fotos existentes
   useEffect(() => {
@@ -157,46 +159,60 @@ export function MobileEvidenceCapture({
     try {
       const processedFiles = await Promise.all(
         Array.from(files).map(async (file) => {
-          // Validar tipo
-          if (!file.type.startsWith('image/')) {
-            console.error('❌ Arquivo não é imagem:', file.type);
+          // Validar tipo (imagem ou vídeo)
+          const isImage = file.type.startsWith('image/');
+          const isVideo = file.type.startsWith('video/');
+          
+          if (!isImage && !isVideo) {
+            console.error('❌ Arquivo não é imagem nem vídeo:', file.type);
             return null;
           }
 
-          // Validar tamanho inicial (máx 50MB)
-          if (file.size > 50 * 1024 * 1024) {
+          // Validar tamanho inicial (máx 50MB para imagem, 100MB para vídeo)
+          const maxSize = isVideo ? 100 * 1024 * 1024 : 50 * 1024 * 1024;
+          if (file.size > maxSize) {
             console.error('❌ Arquivo muito grande:', file.size);
             return null;
           }
 
-          // Comprimir imagem
+          // Processar arquivo
           const originalSize = file.size;
-          const compressedFile = await compressImage(file);
-          const localUrl = URL.createObjectURL(compressedFile);
+          let processedFile = file;
+          let compressed = false;
           
-          const novaFoto: MediaFile = {
+          // Comprimir apenas imagens
+          if (isImage) {
+            processedFile = await compressImage(file);
+            compressed = processedFile.size < originalSize;
+          }
+          
+          const localUrl = URL.createObjectURL(processedFile);
+          
+          const novoArquivo: MediaFile = {
             id: `mobile_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
             url: localUrl,
             localUrl: localUrl,
-            tipo: 'foto',
+            tipo: isVideo ? 'video' : 'foto',
             timestamp: new Date(),
             descricao: descricao || getTipoEvidenciaConfig(tipoEvidencia).label,
             tipoEvidencia,
-            tamanho: compressedFile.size,
+            tamanho: processedFile.size,
             nomeArquivo: file.name,
-            compressed: compressedFile.size < originalSize,
-            originalSize: originalSize
+            compressed: compressed,
+            originalSize: originalSize,
+            duracao: isVideo ? undefined : undefined // TODO: Extrair duração do vídeo se necessário
           };
 
-          console.log('📸 MobileEvidenceCapture: Nova foto processada', {
-            id: novaFoto.id,
+          console.log(`${isVideo ? '🎥' : '📸'} MobileEvidenceCapture: Novo ${isVideo ? 'vídeo' : 'foto'} processado`, {
+            id: novoArquivo.id,
             nome: file.name,
+            tipo: novoArquivo.tipo,
             tamanhoOriginal: Math.round(originalSize / 1024) + 'KB',
-            tamanhoFinal: Math.round(compressedFile.size / 1024) + 'KB',
-            compressao: Math.round((1 - compressedFile.size / originalSize) * 100) + '%'
+            tamanhoFinal: Math.round(processedFile.size / 1024) + 'KB',
+            compressao: compressed ? Math.round((1 - processedFile.size / originalSize) * 100) + '%' : 'N/A'
           });
 
-          return novaFoto;
+          return novoArquivo;
         })
       );
 
@@ -221,16 +237,27 @@ export function MobileEvidenceCapture({
     }
   };
 
-  const removeFoto = (fotoId: string) => {
-    console.log('🗑️ MobileEvidenceCapture: Removendo foto', fotoId);
-    const novasFotos = fotos.filter(foto => foto.id !== fotoId);
-    setFotos(novasFotos);
-    onCapture(novasFotos);
-    
-    // Fechar preview se for a foto removida
-    if (previewPhoto?.id === fotoId) {
-      setPreviewPhoto(null);
+  const handleDeleteRequest = (item: MediaFile) => {
+    setDeleteConfirm({ show: true, item });
+  };
+
+  const confirmDelete = () => {
+    if (deleteConfirm.item) {
+      console.log('🗑️ MobileEvidenceCapture: Removendo arquivo', deleteConfirm.item.id);
+      const novasFotos = fotos.filter(foto => foto.id !== deleteConfirm.item!.id);
+      setFotos(novasFotos);
+      onCapture(novasFotos);
+      
+      // Fechar preview se for o arquivo removido
+      if (previewPhoto?.id === deleteConfirm.item.id) {
+        setPreviewPhoto(null);
+      }
     }
+    setDeleteConfirm({ show: false, item: null });
+  };
+
+  const cancelDelete = () => {
+    setDeleteConfirm({ show: false, item: null });
   };
 
   const handleTakePhoto = () => {
@@ -288,7 +315,7 @@ export function MobileEvidenceCapture({
               ) : (
                 <Camera className="h-5 w-5 mr-2" />
               )}
-              Câmera
+              Foto/Vídeo
             </Button>
             
             <Button
@@ -302,17 +329,28 @@ export function MobileEvidenceCapture({
             </Button>
           </div>
 
-          {/* Grid de Fotos - Otimizado para Mobile */}
+          {/* Grid de Arquivos - Otimizado para Mobile */}
           {fotos.length > 0 && (
             <div className="grid grid-cols-3 gap-2">
-              {fotos.map((foto, index) => (
-                <div key={foto.id} className="relative group aspect-square">
-                  <img
-                    src={foto.localUrl}
-                    alt={foto.descricao}
-                    className="w-full h-full object-cover rounded-lg border-2 border-white shadow-sm"
-                    onClick={() => setPreviewPhoto(foto)}
-                  />
+              {fotos.map((arquivo, index) => (
+                <div key={arquivo.id} className="relative group aspect-square">
+                  {/* Renderizar imagem ou vídeo */}
+                  {arquivo.tipo === 'video' ? (
+                    <video
+                      src={arquivo.localUrl}
+                      className="w-full h-full object-cover rounded-lg border-2 border-white shadow-sm"
+                      onClick={() => setPreviewPhoto(arquivo)}
+                      muted
+                      playsInline
+                    />
+                  ) : (
+                    <img
+                      src={arquivo.localUrl}
+                      alt={arquivo.descricao}
+                      className="w-full h-full object-cover rounded-lg border-2 border-white shadow-sm"
+                      onClick={() => setPreviewPhoto(arquivo)}
+                    />
+                  )}
                   
                   {/* Overlay com ações */}
                   <div className="absolute inset-0 bg-black bg-opacity-0 group-active:bg-opacity-50 transition-all duration-200 rounded-lg flex items-center justify-center">
@@ -320,7 +358,7 @@ export function MobileEvidenceCapture({
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          setPreviewPhoto(foto);
+                          setPreviewPhoto(arquivo);
                         }}
                         className="p-2 bg-blue-500 text-white rounded-full hover:bg-blue-600 shadow-lg"
                       >
@@ -329,7 +367,7 @@ export function MobileEvidenceCapture({
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          removeFoto(foto.id);
+                          handleDeleteRequest(arquivo);
                         }}
                         className="p-2 bg-red-500 text-white rounded-full hover:bg-red-600 shadow-lg"
                       >
@@ -340,7 +378,13 @@ export function MobileEvidenceCapture({
                   
                   {/* Indicadores */}
                   <div className="absolute top-1 right-1 flex gap-1">
-                    {foto.compressed && (
+                    {/* Indicador de tipo */}
+                    {arquivo.tipo === 'video' && (
+                      <div className="bg-purple-500 text-white text-xs px-1 py-0.5 rounded flex items-center">
+                        <PlayCircle className="h-3 w-3" />
+                      </div>
+                    )}
+                    {arquivo.compressed && (
                       <div className="bg-green-500 text-white text-xs px-1 py-0.5 rounded">
                         <CheckCircle className="h-3 w-3" />
                       </div>
@@ -350,7 +394,7 @@ export function MobileEvidenceCapture({
                   {/* Info */}
                   <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent text-white text-xs p-1 rounded-b-lg">
                     <div className="flex justify-between items-center">
-                      <span>{Math.round(foto.tamanho / 1024)}KB</span>
+                      <span>{Math.round(arquivo.tamanho / 1024)}KB</span>
                       <span>{index + 1}</span>
                     </div>
                   </div>
@@ -363,11 +407,11 @@ export function MobileEvidenceCapture({
           <div className="flex items-center justify-between text-sm">
             <div className="flex items-center space-x-2">
               {fotos.length === 0 && (
-                <span className="text-gray-500">Nenhuma foto capturada</span>
+                <span className="text-gray-500">Nenhum arquivo capturado</span>
               )}
               {fotos.length > 0 && (
                 <span className="text-gray-700 font-medium">
-                  {fotos.length} foto{fotos.length > 1 ? 's' : ''} capturada{fotos.length > 1 ? 's' : ''}
+                  {fotos.length} arquivo{fotos.length > 1 ? 's' : ''} capturado{fotos.length > 1 ? 's' : ''}
                 </span>
               )}
             </div>
@@ -393,7 +437,7 @@ export function MobileEvidenceCapture({
             <div className="flex items-center justify-center py-4">
               <div className="flex items-center space-x-2 text-blue-600">
                 <Loader2 className="h-5 w-5 animate-spin" />
-                <span className="text-sm font-medium">Processando fotos...</span>
+                <span className="text-sm font-medium">Processando arquivos...</span>
               </div>
             </div>
           )}
@@ -403,7 +447,7 @@ export function MobileEvidenceCapture({
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/*"
+          accept="image/*,video/*"
           onChange={handleFileChange}
           multiple
           className="hidden"
@@ -412,7 +456,7 @@ export function MobileEvidenceCapture({
         <input
           ref={cameraInputRef}
           type="file"
-          accept="image/*"
+          accept="image/*,video/*"
           capture="environment"
           onChange={handleFileChange}
           className="hidden"
@@ -444,19 +488,28 @@ export function MobileEvidenceCapture({
               </Button>
             </div>
 
-            {/* Imagem */}
+            {/* Mídia */}
             <div className="relative mb-4">
-              <img
-                src={previewPhoto.localUrl}
-                alt={previewPhoto.descricao}
-                className="w-full max-h-96 object-contain rounded-lg"
-              />
+              {previewPhoto.tipo === 'video' ? (
+                <video
+                  src={previewPhoto.localUrl}
+                  className="w-full max-h-96 object-contain rounded-lg"
+                  controls
+                  playsInline
+                />
+              ) : (
+                <img
+                  src={previewPhoto.localUrl}
+                  alt={previewPhoto.descricao}
+                  className="w-full max-h-96 object-contain rounded-lg"
+                />
+              )}
             </div>
 
             {/* Ações */}
             <div className="flex gap-3">
               <Button
-                onClick={() => removeFoto(previewPhoto.id)}
+                onClick={() => handleDeleteRequest(previewPhoto)}
                 variant="destructive"
                 className="flex-1"
               >
@@ -471,6 +524,70 @@ export function MobileEvidenceCapture({
                 Fechar
               </Button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Confirmação de Exclusão */}
+      {deleteConfirm.show && deleteConfirm.item && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="w-full max-w-sm">
+            <Card className="shadow-xl">
+              <CardContent className="p-6 text-center space-y-4">
+                <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto">
+                  <AlertTriangle className="h-8 w-8 text-red-600" />
+                </div>
+                
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                    Confirmar Exclusão
+                  </h3>
+                  <p className="text-sm text-gray-600">
+                    Tem certeza que deseja excluir {deleteConfirm.item.tipo === 'video' ? 'este vídeo' : 'esta foto'}?
+                  </p>
+                  <p className="text-xs text-gray-500 mt-2">
+                    {deleteConfirm.item.nomeArquivo} ({Math.round(deleteConfirm.item.tamanho / 1024)}KB)
+                  </p>
+                </div>
+
+                {/* Preview pequeno */}
+                <div className="flex justify-center">
+                  <div className="w-20 h-20 rounded-lg overflow-hidden border-2 border-gray-200">
+                    {deleteConfirm.item.tipo === 'video' ? (
+                      <video
+                        src={deleteConfirm.item.localUrl}
+                        className="w-full h-full object-cover"
+                        muted
+                      />
+                    ) : (
+                      <img
+                        src={deleteConfirm.item.localUrl}
+                        alt="Preview"
+                        className="w-full h-full object-cover"
+                      />
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <Button
+                    onClick={cancelDelete}
+                    variant="outline"
+                    className="flex-1"
+                  >
+                    Cancelar
+                  </Button>
+                  <Button
+                    onClick={confirmDelete}
+                    variant="destructive"
+                    className="flex-1"
+                  >
+                    <X className="h-4 w-4 mr-2" />
+                    Excluir
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         </div>
       )}

@@ -68,21 +68,85 @@ export function MobileItemEdit({
   // Estados para upload - MESMOS DO MODAL
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
+  
+  // Estados para transição entre itens
+  // Estado persistente do modal para sobreviver a re-renderizações
+  const [showTransition, setShowTransition] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('mobileItemEdit_showTransition') === 'true';
+    }
+    return false;
+  });
+  
+  const [transitionData, setTransitionData] = useState<{
+    currentItem: string;
+    nextItem: string;
+    action: 'next' | 'back';
+  } | null>(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('mobileItemEdit_transitionData');
+      return stored ? JSON.parse(stored) : null;
+    }
+    return null;
+  });
 
   // Token será obtido do localStorage se necessário - MESMO DO MODAL
   const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
 
   useEffect(() => {
+    // NÃO executar se o modal de transição estiver ativo
+    if (showTransition) {
+      console.log('🛡️ MobileItemEdit: useEffect bloqueado - modal ativo');
+      return;
+    }
+    
     if (item) {
       setEditedItem(item as VistoriaItem);
       setHasChanges(false);
       setValidationErrors({});
-      // Reset das fotos quando item mudar - MESMO DO MODAL
-      setFotosNumeroSerie([]);
-      setFotosLocalInstalacao([]);
-      setFotosOutrasEvidencias([]);
+      
+      // Carregar dados salvos se existirem (corrigindo o problema de "tela limpa")
+      const itemData = item as any;
+      
+      // Carregar fotos salvas se existirem
+      if (itemData.fotos_numero_serie && Array.isArray(itemData.fotos_numero_serie)) {
+        setFotosNumeroSerie(itemData.fotos_numero_serie);
+      } else {
+        setFotosNumeroSerie([]);
+      }
+      
+      if (itemData.fotos_local_instalacao && Array.isArray(itemData.fotos_local_instalacao)) {
+        setFotosLocalInstalacao(itemData.fotos_local_instalacao);
+      } else {
+        setFotosLocalInstalacao([]);
+      }
+      
+      if (itemData.fotos_outras_evidencias && Array.isArray(itemData.fotos_outras_evidencias)) {
+        setFotosOutrasEvidencias(itemData.fotos_outras_evidencias);
+      } else {
+        setFotosOutrasEvidencias([]);
+      }
+      
+      console.log('🔄 MobileItemEdit: Dados do item carregados', {
+        itemId: itemData.id,
+        status: itemData.status,
+        concluido: itemData.concluido,
+        temFotosNumero: itemData.fotos_numero_serie?.length || 0,
+        temFotosLocal: itemData.fotos_local_instalacao?.length || 0,
+        temOutrasFotos: itemData.fotos_outras_evidencias?.length || 0,
+        observacoes: itemData.observacoes || 'Nenhuma'
+      });
     }
-  }, [item]);
+  }, [item, showTransition]);
+  
+  // useEffect separado para proteger o estado do modal
+  // Evita que showTransition seja resetado durante recarregamentos
+  useEffect(() => {
+    // Se o modal está ativo, não permitir que outros useEffects o resetem
+    if (showTransition) {
+      console.log('🛡️ MobileItemEdit: Protegendo modal ativo de reset', { showTransition });
+    }
+  }, [showTransition]);
 
   // MESMA FUNÇÃO handleFieldChange DO MODAL
   const handleFieldChange = (field: string, value: any) => {
@@ -495,10 +559,37 @@ export function MobileItemEdit({
         evidenciasLocais: fotosNumeroSerie.length + fotosLocalInstalacao.length + fotosOutrasEvidencias.length
       });
 
-      // Auto-navegar para próximo item ou voltar se for o último
+      // Mostrar modal de transição antes de navegar
+      const currentItemName = `${(editedItem as any).categoria?.descricao || 'Item'} - ${(editedItem as any).fabricante?.nome || ''}`.trim();
+      
+      console.log('🔄 MobileItemEdit: Preparando transição', {
+        onNext: !!onNext,
+        itemIndex,
+        totalItems,
+        canGoNext: itemIndex < totalItems - 1,
+        currentItemName
+      });
+      
       if (onNext && itemIndex < totalItems - 1) {
-        onNext();
+        console.log('✅ MobileItemEdit: Mostrando modal de transição');
+        
+        // Modal elegante
+        const newTransitionData = {
+          currentItem: currentItemName,
+          nextItem: 'Próximo item',
+          action: 'next' as const
+        };
+        
+        // Persistir no localStorage ANTES de definir o estado
+        localStorage.setItem('mobileItemEdit_transitionData', JSON.stringify(newTransitionData));
+        localStorage.setItem('mobileItemEdit_showTransition', 'true');
+        
+        setTransitionData(newTransitionData);
+        setShowTransition(true);
+        console.log('🎯 MobileItemEdit: Modal de transição ativado', { showTransition: true });
       } else {
+        console.log('🔚 MobileItemEdit: Último item, voltando para lista');
+        // Voltar para lista
         onBack();
       }
 
@@ -525,9 +616,17 @@ export function MobileItemEdit({
       
       alert('Erro no upload das evidências, mas os dados foram salvos localmente. As evidências serão enviadas na próxima sincronização.');
       
-      // Auto-navegar mesmo com erro
+      // Mostrar modal de transição mesmo com erro
+      const currentItemName = `${(editedItem as any).categoria?.descricao || 'Item'} - ${(editedItem as any).fabricante?.nome || ''}`.trim();
+      
       if (onNext && itemIndex < totalItems - 1) {
-        onNext();
+        // Modal elegante mesmo com erro
+        setTransitionData({
+          currentItem: currentItemName + ' (com erro de upload)',
+          nextItem: 'Próximo item',
+          action: 'next'
+        });
+        setShowTransition(true);
       } else {
         onBack();
       }
@@ -537,6 +636,9 @@ export function MobileItemEdit({
       setIsUploading(false);
       setUploadProgress({});
       console.log('✅ MobileItemEdit.handleSave: Estados limpos, função concluída');
+      
+      // NÃO resetar showTransition aqui - deixar o modal aparecer
+      // O modal será fechado apenas quando o usuário clicar nos botões
     }
   };
 
@@ -594,6 +696,32 @@ export function MobileItemEdit({
 
   const canGoNext = onNext && itemIndex < totalItems - 1;
   const canGoPrevious = onPrevious && itemIndex > 0;
+
+  // Log para debug do modal
+  console.log('🎭 MobileItemEdit: Estado do modal', { showTransition, transitionData });
+
+  // Funções para lidar com o modal de transição
+  const handleTransitionConfirm = () => {
+    // Limpar localStorage ANTES de resetar estados
+    localStorage.removeItem('mobileItemEdit_showTransition');
+    localStorage.removeItem('mobileItemEdit_transitionData');
+    
+    setShowTransition(false);
+    if (transitionData?.action === 'next' && onNext) {
+      onNext();
+    }
+    setTransitionData(null);
+  };
+
+  const handleTransitionCancel = () => {
+    // Limpar localStorage ANTES de resetar estados  
+    localStorage.removeItem('mobileItemEdit_showTransition');
+    localStorage.removeItem('mobileItemEdit_transitionData');
+    
+    setShowTransition(false);
+    setTransitionData(null);
+    onBack(); // Volta para a lista
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
@@ -1076,6 +1204,80 @@ export function MobileItemEdit({
           </Button>
         </div>
       </div>
+
+      {/* Modal de Transição Elegante */}
+      {(() => {
+        console.log('🎭 Renderizando modal?', { showTransition, transitionData });
+        return showTransition && transitionData;
+      })() && (
+        <div 
+          className="fixed inset-0 bg-white/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 transition-all duration-300"
+          style={{
+            opacity: showTransition ? 1 : 0
+          }}
+        >
+          <div 
+            className="w-full max-w-sm mx-auto transition-all duration-300 transform"
+            style={{
+              transform: showTransition ? 'scale(1) translateY(0)' : 'scale(0.95) translateY(-20px)',
+              opacity: showTransition ? 1 : 0
+            }}
+          >
+            <div className="bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden">
+              {/* Header com ícone de sucesso */}
+              <div className="bg-gradient-to-r from-green-500 to-emerald-500 p-6 text-center">
+                <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <CheckCircle className="h-8 w-8 text-white" />
+                </div>
+                <h3 className="text-xl font-bold text-white">
+                  Item Concluído!
+                </h3>
+                <p className="text-green-100 text-sm mt-1">
+                  Dados salvos com sucesso
+                </p>
+              </div>
+              
+              {/* Conteúdo */}
+              <div className="p-6 space-y-4">
+                <div className="text-center">
+                  <div className="inline-flex items-center px-3 py-1 rounded-full bg-green-50 text-green-700 text-sm font-medium mb-3">
+                    ✅ {transitionData.currentItem}
+                  </div>
+                </div>
+                
+                <div className="bg-blue-50 rounded-xl p-4 text-center">
+                  <div className="flex items-center justify-center space-x-2 text-blue-700 mb-2">
+                    <ArrowRight className="h-5 w-5" />
+                    <span className="font-semibold">Próximo Item</span>
+                  </div>
+                  <p className="text-blue-600 text-sm">
+                    Continuar para o próximo item da vistoria?
+                  </p>
+                </div>
+              </div>
+
+              {/* Botões */}
+              <div className="p-4 bg-gray-50 flex gap-3">
+                <Button
+                  onClick={handleTransitionCancel}
+                  variant="outline"
+                  className="flex-1 h-12 border-gray-300 hover:bg-gray-100"
+                >
+                  <ArrowLeft className="h-4 w-4 mr-2" />
+                  Voltar à Lista
+                </Button>
+                <Button
+                  onClick={handleTransitionConfirm}
+                  className="flex-1 h-12 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-semibold"
+                >
+                  <ArrowRight className="h-4 w-4 mr-2" />
+                  Continuar
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 } 

@@ -6,7 +6,7 @@ import { MobileItemsList } from '@/components/mobile/MobileItemsList';
 import { MobileItemEdit } from '@/components/mobile/MobileItemEdit';
 import { ItemEditModal } from './ItemEditModal';
 import { EvidenceModal } from './EvidenceModal';
-import { VistoriaCompletionModal } from './VistoriaCompletionModal';
+import { MobileVistoriaCompletion } from '../mobile/MobileVistoriaCompletion';
 import { LocalVistoriaService } from '@/services/vistoria/LocalVistoriaService';
 import { VistoriaProgressService } from '@/services/vistoria/VistoriaProgressService';
 import { ApiVistoriaService } from '@/services/vistoria/ApiVistoriaService';
@@ -198,6 +198,14 @@ export function VistoriaDetailsContent({ vistoriaId }: VistoriaDetailsContentPro
           
           if (!integridade.data.integridadeOk) {
             console.warn('⚠️ [VistoriaDetailsContent] Problemas de integridade detectados na vistoria');
+            
+            // Notificar usuário sobre problemas de integridade
+            toast({
+              title: "⚠️ Aviso de Integridade",
+              description: `Detectados ${integridade.data.duplicados} duplicados na vistoria. Sistema continuará funcionando normalmente.`,
+              variant: "destructive",
+              duration: 3000
+            });
           }
         }
         
@@ -568,12 +576,12 @@ export function VistoriaDetailsContent({ vistoriaId }: VistoriaDetailsContentPro
         onBack={handleBackToDashboard}
       />
 
-      {/* Modal de Conclusão da Vistoria */}
-      <VistoriaCompletionModal
+      {/* Modal de Conclusão da Vistoria - Mobile */}
+      <MobileVistoriaCompletion
         open={completionModalOpen}
-        onOpenChange={setCompletionModalOpen}
         vistoria={vistoria}
         onConfirm={handleCompleteVistoria}
+        onCancel={() => setCompletionModalOpen(false)}
         loading={isCompleting}
       />
     </>
