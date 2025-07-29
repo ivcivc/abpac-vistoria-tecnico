@@ -16,6 +16,7 @@ export function IndexedDBDebug() {
   const [availableStores, setAvailableStores] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [lastCheck, setLastCheck] = useState<string>('');
+  const [isClient, setIsClient] = useState(false);
 
   const requiredStores = [
     'vistorias',
@@ -29,6 +30,8 @@ export function IndexedDBDebug() {
   ];
 
   const checkHealth = async () => {
+    if (!isClient) return; // Não executar no servidor
+    
     setIsLoading(true);
     try {
       const healthy = await checkIndexedDBHealth();
@@ -80,10 +83,34 @@ export function IndexedDBDebug() {
   };
 
   useEffect(() => {
-    checkHealth();
+    setIsClient(true);
   }, []);
 
+  useEffect(() => {
+    if (isClient) {
+      checkHealth();
+    }
+  }, [isClient]);
+
   const missingStores = requiredStores.filter(store => !availableStores.includes(store));
+
+  // Mostrar loading enquanto não está no cliente
+  if (!isClient) {
+    return (
+      <Card className="max-w-2xl mx-auto m-4">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Database className="h-5 w-5" />
+            IndexedDB Debug & Diagnóstico
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="text-center py-8">
+          <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-2 text-blue-500" />
+          <p>Carregando diagnóstico...</p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card className="max-w-2xl mx-auto m-4">
@@ -195,7 +222,7 @@ export function IndexedDBDebug() {
             <p>• Banco: VistoriaABPAC (versão 4)</p>
             <p>• Stores Necessárias: {requiredStores.length}</p>
             <p>• Stores Encontradas: {availableStores.length}</p>
-            <p>• IndexedDB Suportado: {typeof window !== 'undefined' && window.indexedDB ? 'Sim' : 'Não'}</p>
+            <p>• IndexedDB Suportado: {isClient && window.indexedDB ? 'Sim' : 'Não'}</p>
           </div>
         </details>
       </CardContent>
