@@ -149,6 +149,7 @@ export const STORES = {
   VISTORIAS_LOCAIS: 'vistorias-locais', // Histórico de vistorias acessadas neste navegador
   ITENS: 'itens',
   EVIDENCIAS: 'evidencias',
+  EVIDENCE_METADATA: 'evidence-metadata', // Task 4.4 - Metadados de evidências com geolocalização
   DESPESAS: 'despesas',
   SYNC_QUEUE: 'sync-queue',
   CONFIG: 'config',

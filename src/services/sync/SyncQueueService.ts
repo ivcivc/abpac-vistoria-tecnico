@@ -8,6 +8,8 @@
 import { CRUDService } from '@/services/storage/CRUDService';
 import { STORES } from '@/types/storage';
 import { ApiVistoriaService } from '@/services/vistoria/ApiVistoriaService';
+import { UploadService } from '@/services/uploadService';
+import { EvidenceStorageService } from '@/services/media/EvidenceStorageService';
 
 export interface SyncQueueItem {
   id: string;
@@ -235,8 +237,7 @@ export class SyncQueueService {
           break;
         
         case 'UPLOAD_EVIDENCE':
-          // TODO: Implementar quando tiver o serviço de upload
-          resultado = { success: false, error: 'Upload de evidências não implementado ainda' };
+          resultado = await this.processarUploadEvidencia(item);
           break;
         
         case 'COMPLETE_VISTORIA':
@@ -266,6 +267,110 @@ export class SyncQueueService {
       console.error(`❌ [SYNC-QUEUE] Erro ao processar item ${item.id}:`, error);
       await this.atualizarTentativa(item, `Erro inesperado: ${error}`);
     }
+  }
+
+  /**
+   * Processa upload de evidência
+   */
+  private async processarUploadEvidencia(item: SyncQueueItem): Promise<ServiceResult> {
+    try {
+      console.log(`📸 [SYNC-QUEUE] Processando upload de evidência ${item.entidade}`);
+      
+      // Buscar metadados da evidência
+      const evidenceData = await EvidenceStorageService.getEvidencesByVistoria(item.vistoriaId);
+      const evidence = evidenceData.find(e => e.id === item.entidade);
+      
+      if (!evidence) {
+        return { success: false, error: 'Evidência não encontrada no armazenamento local' };
+      }
+      
+      // Atualizar status para uploading
+      await EvidenceStorageService.updateEvidenceStatus(evidence.id, 'uploading');
+      
+      try {
+        // Fazer fetch do blob da URL local
+        const response = await fetch(evidence.urlLocal);
+        
+        if (!response.ok) {
+          throw new Error(`Falha ao recuperar blob: ${response.status}`);
+        }
+        
+        const blob = await response.blob();
+        
+        // Fazer upload usando UploadService
+        const uploadResult = await UploadService.uploadFile(blob, {
+          tipo: 'evidencia',
+          referencia: `${evidence.vistoriaId}_${evidence.itemId}_${evidence.tipoEvidencia}`,
+          fileName: evidence.nomeOriginal
+        });
+        
+        if (uploadResult.success && uploadResult.arquivo) {
+          // Atualizar status para synced
+          await EvidenceStorageService.updateEvidenceStatus(
+            evidence.id, 
+            'synced', 
+            uploadResult.arquivo.url
+          );
+          
+          console.log(`✅ [SYNC-QUEUE] Upload de evidência concluído: ${evidence.id}`);
+          return { success: true };
+          
+        } else {
+          throw new Error(uploadResult.error || 'Upload falhou sem erro específico');
+        }
+        
+      } catch (uploadError) {
+        // Atualizar status para error
+        await EvidenceStorageService.updateEvidenceStatus(
+          evidence.id, 
+          'error', 
+          undefined, 
+          uploadError instanceof Error ? uploadError.message : 'Erro desconhecido'
+        );
+        
+        return { 
+          success: false, 
+          error: uploadError instanceof Error ? uploadError.message : 'Erro no upload' 
+        };
+      }
+      
+    } catch (error) {
+      console.error(`❌ [SYNC-QUEUE] Erro no processamento de evidência:`, error);
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Erro inesperado' 
+      };
+    }
+  }
+
+  /**
+   * Adiciona upload de evidência na fila
+   */
+  static async adicionarUploadEvidencia(
+    evidenceId: string,
+    vistoriaId: string,
+    token: string,
+    prioridade: number = 2
+  ): Promise<void> {
+    const instance = await this.getInstance();
+    
+    const item: SyncQueueItem = {
+      id: `upload_evidence_${evidenceId}_${Date.now()}`,
+      tipo: 'UPLOAD_EVIDENCE',
+      entidade: evidenceId,
+      dados: {}, // Dados são recuperados do EvidenceStorageService
+      prioridade,
+      tentativas: 0,
+      maxTentativas: 5,
+      proximaTentativa: new Date().toISOString(),
+      timestamp: new Date().toISOString(),
+      vistoriaId,
+      token
+    };
+    
+    await instance.crudService.create(item);
+    
+    console.log(`📸 [SYNC-QUEUE] Upload de evidência adicionado à fila: ${evidenceId}`);
   }
 
   /**
